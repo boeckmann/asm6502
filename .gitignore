@@ -1,0 +1,13 @@
+# binary files
+*.exe
+*.o
+
+# Pelles C
+*.ppx
+*.tag
+output
+
+# operating system stuff
+.DS_Store
+.syncthing*
+*.swp
