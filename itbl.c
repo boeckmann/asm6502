@@ -51,7 +51,7 @@ idesc itbl[56] = {
 	{"SED", {INV, 0xf8, INV, INV, INV, INV, INV, INV, INV, INV, INV, INV, INV}},
 	{"SEI", {INV, 0x78, INV, INV, INV, INV, INV, INV, INV, INV, INV, INV, INV}},
 	{"STA", {INV, INV, INV, INV, 0x85, 0x95, INV, 0x8d, 0x9d, 0x99, INV, 0x81, 0x91}},
-	{"STX", {INV, INV, INV, INV, 0x86, 0x96, INV, 0x8e, INV, INV, INV, INV, INV}},
+	{"STX", {INV, INV, INV, INV, 0x86, INV, 0x96, 0x8e, INV, INV, INV, INV, INV}},
 	{"STY", {INV, INV, INV, INV, 0x84, 0x94, INV, 0x8c, INV, INV, INV, INV, INV}},
 	{"TAX", {INV, 0xaa, INV, INV, INV, INV, INV, INV, INV, INV, INV, INV, INV}},
 	{"TAY", {INV, 0xa8, INV, INV, INV, INV, INV, INV, INV, INV, INV, INV, INV}},
