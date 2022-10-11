@@ -14,8 +14,8 @@
 char *text = NULL;
 char *code = NULL;
 
-u16 pc = 0;	/* program counter */
-u16 oc = 0;  /* output counter */
+u16 pc = 0;    /* program counter */
+u16 oc = 0;    /* output counter */
 int errors = 0;
 
 #define VALUE_DEFINED 0x40
@@ -204,21 +204,8 @@ u16 digit(const char *p)
    return (u16)(*p + 10 - 'a');
 }
 
-/*#define skipw(p) while (((*(p)) == ' ') || ((*(p)) == '\t')) { (p)++; }*/
-/*#define skipnext(p) (p)++; while (((*(p)) == ' ') || ((*(p)) == '\t')) { (p)++; }*/
-
-/*#define skipcomment(p) if (*(p) == ';') { \
-      (p)++; \
-      while((*(p) != 0x0d) && (*(p) != 0x0a) && (*(p) != 0)) (p)++; \
-   }*/
-/*#define skipwc(p) { skipw((p)); skipcomment((p)); }*/
-
-
-
-/*#define skipeol(p) if (*(p) == 0x0d) (p)++; if (*(p) == 0x0a) (p)++;*/
 #define iseol(p) (((p) == 0x0a) || ((p) == 0x0d))
 #define isend(p) (((!(p)) || (p) == 0x0a) || ((p) == 0x0d))
-/*#define skipl(p) { while (!isend(*(p))) (p)++; }*/
 
 void skipeol(char **p)
 {
@@ -269,7 +256,6 @@ value number(char **p)
       typ = ((*p-pt)>3) ? TYPE_WORD : NUM_TYPE(num.v);
       SET_TYPE(num, typ);
       SET_DEFINED(num);
-      /*printf("t: %x\n", num.t);*/
    }
    else {
       if (!isdigit(**p)) error(ERR_NUM);
@@ -334,6 +320,12 @@ value primary(char **p)
       (*p)++;
       res.v = 0;
       res.t = 0;
+   }
+   else if (**p == '@') {
+      (*p)++;
+      res.v = pc;
+      SET_TYPE(res, TYPE_WORD);
+      SET_DEFINED(res);
    }
    else if (isalpha(**p)) {
       ident(p, id);
@@ -446,12 +438,6 @@ idesc *getidesc(const char *p)
    return NULL;
 }
 
-/*#define EMIT_B(b) printf("%02x ", (int)(b));*/
-/*#define EMIT_B(b) code[oc++] = (b)
-#define EMIT_0(i, a) EMIT_B((i).op[a])
-#define EMIT_1(i, a, o) { EMIT_B((i).op[a]); EMIT_B(o); }
-#define EMIT_2(i, a, o) { EMIT_B((i).op[a]); EMIT_B((o) & 0xff); EMIT_B((o) >> 8); }*/
-
 void emit_b(u8 b, int pass)
 {
    if (pass == 2) {
@@ -519,14 +505,21 @@ int instruction_imm(char **p, int pass, idesc *instr)
 int instruction_rel(char **p, int pass, idesc *instr, value v)
 {
    int am = AM_REL;
-   int off;
+   u16 pct = pc + 2u;
+   u16 off;
 
-   off = (v.v - pc - 2);
+   /* relative branch offsets are in 2-complement */
+   /* have to calculate it by hand avoiding implementation defined behaviour */
+   /* using unsigned int because int may not be in 2-complement */
    if (pass == 2) {
       if (UNDEFINED(v)) error(ERR_UNDEF);
-      if ((off > 127) || (off < -128)) error(ERR_RELRNG);
+
+      if ((v.v >= pct) && ((u16)(v.v - pct) > 127u)) error(ERR_RELRNG);
+      else if ((pct > v.v) && ((u16)(pct - v.v) > 128u)) error(ERR_RELRNG);
    }
-   emit_1(instr, am, off & 0xff, pass);
+   if (v.v >= pct) off = v.v - pct;
+   else off = (~0u) - (pct - v.v - 1u);
+   emit_1(instr, am, off & 0xffu, pass);
 
    return am;
 }
