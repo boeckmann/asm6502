@@ -14,4 +14,4 @@ asm6502: $(OBJ)
 	$(CC) -c $(CFLAGS) $<
 
 clean:
-	${DEL} asm6502 *.bak *.exe *.gch *.il? *.o *.obj *.tds 2>/dev/null || true
+	${DEL} asm6502 *.bak *.exe *.gch *.il? *.lk1 *.map *.mk *.mk1 *.o *.obj *.ppx *.sym *.tag *.tds 2>/dev/null || true
