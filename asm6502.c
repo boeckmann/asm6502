@@ -190,7 +190,6 @@ symbol * reservelbl(const char *id)
 void defvar(const char *id, const value v)
 {
    symbol *sym = aquire(id);
-   if (IS_LBL(*sym))
    if (DEFINED(sym->value) &&
          ((sym->value.v != v.v) || (sym->value.t != v.t))) error(ERR_REDEF);
    sym->value = v;
@@ -736,7 +735,7 @@ void directive(char **p, int pass)
                if (UNDEFINED(v)) error (ERR_UNDEF);
                if (TYPE(v) != TYPE_BYTE) error(ERR_ILLTYPE);
             }
-            emit_b(v.v, pass);
+            emit_b(to_byte(v).v, pass);
 
             pc++;
          }
