@@ -735,34 +735,38 @@ void statement(char **p, int pass)
 {
    char id1[ID_LEN];
    value v1;
-   char *pt = *p;
+   char *pt;
 
+   skipwc(p);
+   if (isend(**p)) return;
+   pt = *p;
+
+   /* first check for variable or label definition */
    if (isalpha(**p)) {
       ident(p, id1);
-
       skipw(p);
-
-      if (**p == ':') {			/* label definition */
-         deflbl(id1, pc);
-
-         (*p)++;
-         skipwc(p);
-         if (!iseol(**p))
-            instruction(p, pass);
-      }
-      else if (**p == '=') {	/* variable definition */
+      if (**p == '=') {	/* variable definition */
          (*p)++;
          v1 = expr(p);
          defvar(id1, v1);
+         return;
       }
-      else {	/* machine instruction */
-         *p = pt;
-         instruction(p, pass);
+      else if (**p == ':') {
+         (*p)++;
+         deflbl(id1, pc);
+         skipwc(p);
+         if (isend(**p)) return;       
       }
+      else *p = pt;
    }
-   else if (**p == '.') {
+
+   /* check for directive or instruction */
+   if (**p == '.') {
       (*p)++;
       directive(p, pass);
+   }
+   else if (isalpha(**p)) {
+      instruction(p, pass);
    }
    else error(ERR_STMT);
 }
@@ -776,19 +780,16 @@ void pass(char **p, int pass)
 
    if (!(err = setjmp(error_jmp))) {
       while (**p) {
+         statement(p, pass);
          skipwc(p);
+
          if (!(**p)) break;
 
-         if (iseol(**p)) {
-            skipeol(p);
-            line++;
-            continue;
-         }
-
-         statement(p, pass);
-
-         skipwc(p);
          if (!isend(**p)) error(ERR_EOL);
+
+         skipeol(p);
+         line++;
+         continue;
       }
    }
    else {
@@ -829,7 +830,7 @@ int main(int argc, char *argv[])
 {
    char *ttext;
 
-   if (argc != 3) {
+   if ((argc != 3) || !strcmp(argv[1], argv[2])) {
       printf("Usage: asm6502 input output\n");
       return EXIT_SUCCESS;
    }
@@ -839,14 +840,12 @@ int main(int argc, char *argv[])
       goto err0;
    }
 
-   printf("pass 1...\n");
    pass(&ttext, 1);
    if (errors) {
       printf("abort: source contains errors\n");
       goto err1;
    }
 
-   printf("pass 2...\n");
    ttext = text;
    code = malloc(oc);
    pass(&ttext, 2);
@@ -855,7 +854,7 @@ int main(int argc, char *argv[])
       goto err2;
    }
 
-   printf("done, code size = %d ($%x) bytes\n", oc, oc);
+   printf("output size = %d bytes\n", oc);
    fflush(stdout);
 
    if (!save(argv[2], code, oc)) {
