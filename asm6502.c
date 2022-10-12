@@ -118,22 +118,23 @@ void dump_symbols(void)
 #define ERR_UNBALANCED	2
 #define ERR_ID 			3
 #define ERR_IDLEN 		4
-#define ERR_STMT		5
+#define ERR_STMT		   5
 #define ERR_EOL			6
-#define ERR_REDEF		7
-#define ERR_INSTR		8
-#define ERR_AM			9
-#define ERR_LBLREDEF	10
-#define ERR_CLBR		11
-#define ERR_INX		12
-#define ERR_INY		13
-#define ERR_ILLAM		14
-#define ERR_OPUNDEFT	15
+#define ERR_REDEF       7
+#define ERR_INSTR       8
+#define ERR_AM          9
+#define ERR_LBLREDEF    10
+#define ERR_CLBR        11
+#define ERR_INX         12
+#define ERR_INY         13
+#define ERR_ILLAM       14
+#define ERR_OPUNDEFT    15
 #define ERR_NODIRECTIVE 16
-#define ERR_UNDEF    17
-#define ERR_ILLTYPE  18
-#define ERR_RELRNG   19
-#define ERR_STREND   20
+#define ERR_UNDEF       17
+#define ERR_ILLTYPE     18
+#define ERR_RELRNG      19
+#define ERR_STREND      20
+#define ERR_BYTERNG     21
 
 char *err_msg[] = {
    "",
@@ -156,7 +157,8 @@ char *err_msg[] = {
    "undefined value",
    "illegal type",
    "relative jump target out of range",
-   "string not terminated"
+   "string not terminated",
+   "byte value out of range"
 };
 
 jmp_buf error_jmp;
@@ -188,13 +190,21 @@ symbol * reservelbl(const char *id)
 void defvar(const char *id, const value v)
 {
    symbol *sym = aquire(id);
-   if (IS_LBL(*sym)) error(ERR_LBLREDEF);
+   if (IS_LBL(*sym))
    if (DEFINED(sym->value) &&
          ((sym->value.v != v.v) || (sym->value.t != v.t))) error(ERR_REDEF);
    sym->value = v;
+   /* if previously defined as label make it word sized */
+   if (IS_LBL(*sym)) SET_TYPE(sym->value, TYPE_WORD);
    sym->kind = KIND_VAR;
 }
 
+value to_byte(value v)
+{
+   if (DEFINED(v) && (v.v > 0xff)) error(ERR_BYTERNG);
+   SET_TYPE(v, TYPE_BYTE);
+   return v;
+}
 
 #define ishexdigit(x) (isdigit((x)) || (((x) >= 'a') && ((x) <= 'f')) || \
                        (((x) >= 'A') && ((x) <= 'F')))
@@ -498,9 +508,8 @@ int instruction_imm(char **p, int pass, idesc *instr)
    v = expr(p);
    if (pass == 2) {
       if (UNDEFINED(v)) error(ERR_UNDEF);
-      if (TYPE(v) != TYPE_BYTE) error(ERR_ILLTYPE);
    }
-   emit_1(instr, am, v.v, pass);
+   emit_1(instr, am, to_byte(v).v, pass);
    return am;
 }
 
@@ -682,7 +691,6 @@ void instruction(char **p, int pass)
          am = instruction_abs_zp(p, pass, instr, v);
       }
    }
-   skipl(p);
 
    /* update program counter */
    if (am == AM_INV) error(ERR_AM);
@@ -787,10 +795,11 @@ void statement(char **p, int pass)
    else error(ERR_STMT);
 }
 
+static int line;
 void pass(char **p, int pass)
 {
-   volatile int line = 1;
    int err;
+   line = 1;
    pc = 0;
    oc = 0;
 
@@ -799,17 +808,16 @@ void pass(char **p, int pass)
          statement(p, pass);
          skipwc(p);
 
-         if (!(**p)) break;
+         //if (!(**p)) break;
 
          if (!isend(**p)) error(ERR_EOL);
 
          skipeol(p);
          line++;
-         continue;
       }
    }
    else {
-      printf("line %d: error %d: %s\n", line, err, err_msg[err]);
+      printf("error: line %d: %s\n", line, err_msg[err]);
    }
 }
 
