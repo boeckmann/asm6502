@@ -133,6 +133,7 @@ void dump_symbols(void)
 #define ERR_UNDEF    17
 #define ERR_ILLTYPE  18
 #define ERR_RELRNG   19
+#define ERR_STREND   20
 
 char *err_msg[] = {
    "",
@@ -154,7 +155,8 @@ char *err_msg[] = {
    "unknown directive",
    "undefined value",
    "illegal type",
-   "relative jump target out of range"
+   "relative jump target out of range",
+   "string not terminated"
 };
 
 jmp_buf error_jmp;
@@ -708,16 +710,30 @@ void directive(char **p, int pass)
       do {
          next = 0;
          skipw(p);
-         v = expr(p);
-         if (pass == 2) {
-            if (UNDEFINED(v)) error (ERR_UNDEF);
-            if (TYPE(v) != TYPE_BYTE) error(ERR_ILLTYPE);
+
+         if (**p == '"') {
+            (*p)++;
+            while (!isend(**p) && (**p != '"')) {
+               emit_b(**p, pass);
+               (*p)++;
+               pc++;
+            }
+            if (**p != '"') error(ERR_STREND);
+            (*p)++;
          }
-         emit_b(v.v, pass);
+         else {
+            v = expr(p);
 
-         pc++;
+            if (pass == 2) {
+               if (UNDEFINED(v)) error (ERR_UNDEF);
+               if (TYPE(v) != TYPE_BYTE) error(ERR_ILLTYPE);
+            }
+            emit_b(v.v, pass);
+
+            pc++;
+         }
+
          skipw(p);
-
          if (**p == ',') {
             skipnext(p);
             next = 1;
