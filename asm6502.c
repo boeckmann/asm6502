@@ -268,6 +268,19 @@ value number(char **p)
       SET_TYPE(num, typ);
       SET_DEFINED(num);
    }
+   else if (**p == '%') {
+      (*p)++;
+      if ((**p != '0') && (**p != '1')) error(ERR_NUM);
+      do {
+         num.v = (num.v << 1) + (**p - '0');
+         (*p)++;
+      }
+      while ((**p == '0') || (**p == '1'));
+      typ = ((*p-pt)>9) ? TYPE_WORD : NUM_TYPE(num.v);
+      SET_TYPE(num, typ);
+      SET_DEFINED(num);
+   }
+
    else {
       if (!isdigit(**p)) error(ERR_NUM);
       do {
@@ -358,10 +371,19 @@ value product(char **p)
    skipw(p);
    op = **p;
 
-   while(op == '*') {
+   while((op == '*') || (op == '&')) {
       (*p)++;
       n2 = primary(p);
-      res.v = res.v * n2.v;
+
+      switch (op) {
+         case '*':
+            res.v = res.v * n2.v;
+            break;
+         case '&':
+            res.v = res.v & n2.v;
+            break;
+      }
+
       SET_TYPE(res, INFERE_TYPE(res, n2));
       INFERE_DEFINED(res, n2);
       skipw(p);
@@ -383,12 +405,17 @@ value term(char **p)
       res.v = -res.v;
       if (DEFINED(res)) SET_TYPE(res, NUM_TYPE(res.v));
    }
-   else res = product(p);
+   else {
+      if(**p == '+') {
+         (*p)++;
+      }
+      res = product(p);
+   }
 
    skipw(p);
    op = **p;
 
-   while ((op == '+') || (op == '-')) {
+   while ((op == '+') || (op == '-') || (op == '|')) {
       (*p)++;
       n2 = product(p);
 
@@ -399,6 +426,8 @@ value term(char **p)
          case '-':
             res.v = res.v - n2.v;
             break;
+         case '|':
+            res.v = res.v | n2.v;
       }
       SET_TYPE(res, INFERE_TYPE(res, n2));
       INFERE_DEFINED(res, n2);
@@ -455,6 +484,15 @@ void emit_b(u8 b, int pass)
       code[oc] = b;
    }
    oc+=1;
+}
+
+void emit_w(u16 w, int pass)
+{
+   if (pass == 2) {
+      code[oc] = w & 0xff;
+      code[oc+1] = w >> 8;
+   }
+   oc+=2;
 }
 
 void emit_0(idesc *instr, int am, int pass)
@@ -696,24 +734,11 @@ void instruction(char **p, int pass)
    pc += am_size[am];
 }
 
-void directive(char **p, int pass)
+void directive_byte(char **p, int pass)
 {
-   char id[ID_LEN];
    value v;
    int next;
 
-   ident_upcase(p, id);
-
-   if (!strcmp(id, "ORG")) {
-      v = expr(p);
-      if (UNDEFINED(v)) error (ERR_UNDEF);
-      pc = v.v;
-   }
-   else if (!strcmp(id, "PUT")) {
-      v = expr(p);
-      if (UNDEFINED(v)) error (ERR_UNDEF);
-   }
-   else if (!strcmp(id, "BYTE")) {
       do {
          next = 0;
          skipw(p);
@@ -745,8 +770,55 @@ void directive(char **p, int pass)
             skipnext(p);
             next = 1;
          }
+      } while (next);
+}
+
+void directive_word(char **p, int pass)
+{
+   value v;
+   int next;
+
+   do {
+      next = 0;
+      skipw(p);
+
+      v = expr(p);
+
+      if (pass == 2) {
+         if (UNDEFINED(v)) error (ERR_UNDEF);
       }
-      while (next);
+      emit_w(v.v, pass);
+
+      pc+=2;
+      skipw(p);
+      if (**p == ',') {
+         skipnext(p);
+         next = 1;
+      }
+   } while (next);
+}
+
+void directive(char **p, int pass)
+{
+   char id[ID_LEN];
+   value v;
+
+   ident_upcase(p, id);
+
+   if (!strcmp(id, "ORG")) {
+      v = expr(p);
+      if (UNDEFINED(v)) error (ERR_UNDEF);
+      pc = v.v;
+   }
+   else if (!strcmp(id, "PUT")) {
+      v = expr(p);
+      if (UNDEFINED(v)) error (ERR_UNDEF);
+   }
+   else if (!strcmp(id, "BYTE")) {
+      directive_byte(p, pass);
+   }
+   else if (!strcmp(id, "WORD")) {
+      directive_word(p, pass);
    }
    else {
       error(ERR_NODIRECTIVE);
@@ -886,7 +958,7 @@ int main(int argc, char *argv[])
    }
 
 
-   /*dump_symbols();*/
+   dump_symbols();
    return EXIT_SUCCESS;
 
 err2:
