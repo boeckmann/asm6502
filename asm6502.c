@@ -739,38 +739,39 @@ void directive_byte(char **p, int pass)
    value v;
    int next;
 
-      do {
-         next = 0;
-         skipw(p);
+   do {
+      next = 0;
+      skipw(p);
 
-         if (**p == '"') {
+      if (**p == '"') {
+         (*p)++;
+         while (!isend(**p) && (**p != '"')) {
+            emit_b(**p, pass);
             (*p)++;
-            while (!isend(**p) && (**p != '"')) {
-               emit_b(**p, pass);
-               (*p)++;
-               pc++;
-            }
-            if (**p != '"') error(ERR_STREND);
-            (*p)++;
-         }
-         else {
-            v = expr(p);
-
-            if (pass == 2) {
-               if (UNDEFINED(v)) error (ERR_UNDEF);
-               if (TYPE(v) != TYPE_BYTE) error(ERR_ILLTYPE);
-            }
-            emit_b(to_byte(v).v, pass);
-
             pc++;
          }
+         if (**p != '"') error(ERR_STREND);
+         (*p)++;
+      }
+      else {
+         v = expr(p);
 
-         skipw(p);
-         if (**p == ',') {
-            skipnext(p);
-            next = 1;
+         if (pass == 2) {
+            if (UNDEFINED(v)) error (ERR_UNDEF);
+            if (TYPE(v) != TYPE_BYTE) error(ERR_ILLTYPE);
          }
-      } while (next);
+         emit_b(to_byte(v).v, pass);
+
+         pc++;
+      }
+
+      skipw(p);
+      if (**p == ',') {
+         skipnext(p);
+         next = 1;
+      }
+   }
+   while (next);
 }
 
 void directive_word(char **p, int pass)
@@ -795,7 +796,8 @@ void directive_word(char **p, int pass)
          skipnext(p);
          next = 1;
       }
-   } while (next);
+   }
+   while (next);
 }
 
 void directive(char **p, int pass)
@@ -850,7 +852,7 @@ void statement(char **p, int pass)
          (*p)++;
          deflbl(id1, pc);
          skipwc(p);
-         if (isend(**p)) return;       
+         if (isend(**p)) return;
       }
       else *p = pt;
    }
