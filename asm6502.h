@@ -34,7 +34,7 @@ typedef struct idesc {
 } idesc;
 
 extern idesc itbl[56];
-extern int am_size[13];
+extern u16 am_size[13];
 
 #define AM_VALID(idesc, am) ((idesc).op[am] != INV)
 #endif

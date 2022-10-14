@@ -2,7 +2,7 @@
 #pragma warn -sig
 #endif
 
-#define ID_LEN	32
+#define ID_LEN  32
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -41,8 +41,8 @@ typedef struct value {
    u8  t;
 } value;
 
-#define KIND_LBL	0x01
-#define KIND_VAR	0x02
+#define KIND_LBL        0x01
+#define KIND_VAR        0x02
 #define IS_LBL(x) (((x).kind & KIND_LBL) != 0)
 #define IS_VAR(x) (((x).kind & KIND_VAR) != 0)
 
@@ -114,12 +114,12 @@ void dump_symbols(void)
    }
 }
 
-#define ERR_NUM			1
-#define ERR_UNBALANCED	2
-#define ERR_ID 			3
-#define ERR_IDLEN 		4
-#define ERR_STMT		   5
-#define ERR_EOL			6
+#define ERR_NUM         1
+#define ERR_UNBALANCED  2
+#define ERR_ID          3
+#define ERR_IDLEN       4
+#define ERR_STMT        5
+#define ERR_EOL         6
 #define ERR_REDEF       7
 #define ERR_INSTR       8
 #define ERR_AM          9
@@ -162,10 +162,10 @@ char *err_msg[] = {
 };
 
 jmp_buf error_jmp;
-void error(int code)
+void error(int err)
 {
    errors++;
-   longjmp(error_jmp, code);
+   longjmp(error_jmp, err);
 }
 
 void deflbl(const char *id, u16 v)
@@ -315,7 +315,7 @@ void ident_upcase(char **p, char *id)
 
    if (!isalpha(**p)) error(ERR_ID);
    do {
-      *id++ = toupper(*(*p)++);
+      *id++ = (char)toupper(*(*p)++);
       i++;
       if (i >= ID_LEN) error(ERR_IDLEN);
    }
@@ -377,10 +377,10 @@ value product(char **p)
 
       switch (op) {
          case '*':
-            res.v = res.v * n2.v;
+            res.v = (u16)(res.v * n2.v);
             break;
          case '&':
-            res.v = res.v & n2.v;
+            res.v = (u16)(res.v & n2.v);
             break;
       }
 
@@ -466,7 +466,7 @@ value expr(char **p)
 
 void upcase(char *p)
 {
-   for (; *p; p++) *p = toupper(*p);
+   for (; *p; p++) *p = (char)toupper(*p);
 }
 
 idesc *getidesc(const char *p)
@@ -522,7 +522,7 @@ void emit_2(idesc *instr, int am, u16 o, int pass)
    oc+=3;
 }
 
-int instruction_imp_acc(char **p, int pass, idesc *instr)
+int instruction_imp_acc(int pass, idesc *instr)
 {
    int am = AM_INV;
 
@@ -539,18 +539,18 @@ int instruction_imm(char **p, int pass, idesc *instr)
 {
    int am = AM_IMM;
    value v;
-   am = AM_IMM;
+
    (*p)++;
    if (instr->op[am] == INV) error(ERR_AM);
    v = expr(p);
    if (pass == 2) {
       if (UNDEFINED(v)) error(ERR_UNDEF);
    }
-   emit_1(instr, am, to_byte(v).v, pass);
+   emit_1(instr, am, (u8)to_byte(v).v, pass);
    return am;
 }
 
-int instruction_rel(char **p, int pass, idesc *instr, value v)
+int instruction_rel(int pass, idesc *instr, value v)
 {
    int am = AM_REL;
    u16 pct = pc + 2u;
@@ -566,7 +566,7 @@ int instruction_rel(char **p, int pass, idesc *instr, value v)
       else if ((pct > v.v) && ((u16)(pct - v.v) > 128u)) error(ERR_RELRNG);
    }
    if (v.v >= pct) off = v.v - pct;
-   else off = (~0u) - (pct - v.v - 1u);
+   else off = (u16)((~0u) - (pct - v.v - 1u));
    emit_1(instr, am, off & 0xffu, pass);
 
    return am;
@@ -578,6 +578,7 @@ int instruction_ind(char **p, int pass, idesc *instr)
    char id[ID_LEN];
    int am = AM_INV;
    value v;
+
    (*p)++;
    v = expr(p);
    skipw(p);
@@ -590,6 +591,7 @@ int instruction_ind(char **p, int pass, idesc *instr)
       am = AM_INX;
       skipw(p);
       if (**p != ')') error(ERR_CLBR);
+      skipnext(p);
    }
    else {
       if (**p != ')') error(ERR_CLBR);
@@ -603,11 +605,10 @@ int instruction_ind(char **p, int pass, idesc *instr)
       }
       else {
          am = AM_IND;
-         if (instr->op[am] == INV) error(ERR_AM);
       }
    }
 
-   if ((am == AM_INV) || (instr->op[am] == INV)) error(ERR_AM);
+   if ((instr->op[am]) == INV) error(ERR_AM);
 
    if (pass == 2) {
       if (UNDEFINED(v)) error(ERR_UNDEF);
@@ -618,7 +619,7 @@ int instruction_ind(char **p, int pass, idesc *instr)
       emit_2(instr, am, v.v, pass);
    }
    else {
-      emit_1(instr, am, v.v, pass);
+      emit_1(instr, am, (u8)v.v, pass);
    }
 
    return am;
@@ -650,7 +651,7 @@ int instruction_abxy_zpxy(char **p, int pass, idesc *instr, value v)
    }
 
    if ((am == AM_ZPX) || (am == AM_ZPY)) {
-      emit_1(instr, am, v.v, pass);
+      emit_1(instr, am, (u8) v.v, pass);
    }
    else {
       emit_2(instr, am, v.v, pass);
@@ -661,7 +662,7 @@ int instruction_abxy_zpxy(char **p, int pass, idesc *instr, value v)
 }
 
 /* handle absolute and zeropage addressing modes */
-int instruction_abs_zp(char **p, int pass, idesc *instr, value v)
+int instruction_abs_zp(int pass, idesc *instr, value v)
 {
    int am = AM_INV;
 
@@ -670,7 +671,7 @@ int instruction_abs_zp(char **p, int pass, idesc *instr, value v)
       if (pass == 2) {
          if (UNDEFINED(v)) error(ERR_UNDEF);
       }
-      emit_1(instr, am, v.v, pass);
+      emit_1(instr, am, (u8)v.v, pass);
    }
    else if (AM_VALID(*instr, AM_ABS)) {
       am = AM_ABS;
@@ -699,7 +700,7 @@ void instruction(char **p, int pass)
    /* if found get addressing mode */
    skipwc(p);
    if (isend(**p)) {
-      am = instruction_imp_acc(p, pass, instr);
+      am = instruction_imp_acc(pass, instr);
    }
    else if (**p == '#') {
       am = instruction_imm(p, pass, instr);
@@ -716,7 +717,7 @@ void instruction(char **p, int pass)
       skipw(p);
       /* relative instruction mode if instruction supports it */
       if (instr->op[AM_REL] != INV) {
-         am = instruction_rel(p, pass, instr, v);
+         am = instruction_rel(pass, instr, v);
       }
       /* else we go through the possible absolute addressing modes */
       else if (**p == ',') {
@@ -725,7 +726,7 @@ void instruction(char **p, int pass)
       }
       /* must be absolute or zeropage addressing */
       else {
-         am = instruction_abs_zp(p, pass, instr, v);
+         am = instruction_abs_zp(pass, instr, v);
       }
    }
 
@@ -760,7 +761,7 @@ void directive_byte(char **p, int pass)
             if (UNDEFINED(v)) error (ERR_UNDEF);
             if (TYPE(v) != TYPE_BYTE) error(ERR_ILLTYPE);
          }
-         emit_b(to_byte(v).v, pass);
+         emit_b((u8)to_byte(v).v, pass);
 
          pc++;
       }
@@ -842,7 +843,7 @@ void statement(char **p, int pass)
    if (isalpha(**p)) {
       ident(p, id1);
       skipw(p);
-      if (**p == '=') {	/* variable definition */
+      if (**p == '=') { /* variable definition */
          (*p)++;
          v1 = expr(p);
          defvar(id1, v1);
@@ -898,7 +899,7 @@ char *load(const char *fn)
 {
    char *buf = NULL;
    FILE *f = fopen(fn, "rb");
-   int size;
+   long size;
    if (!f) return 0;
    fseek(f, 0, SEEK_END);
    size = ftell(f);
@@ -960,7 +961,7 @@ int main(int argc, char *argv[])
    }
 
 
-   dump_symbols();
+   /*dump_symbols();*/
    return EXIT_SUCCESS;
 
 err2:
