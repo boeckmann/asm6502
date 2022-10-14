@@ -88,16 +88,16 @@ Each line may end with a comment. Comments start with a semicolon.
 
 At the beginning of a line a label may be specified if the line does not contain a variable definition.
 
-	start:			; line consisting of a label comment
-	loop:	BNE loop	; label, instruction and comment
-	msg:	.byte "Hello"	; label followed by a directive and comment
+	start:			; line consisting of a label
+	loop:	BNE loop	; label and instruction
+	msg:	.byte "Hello"	; label followed by a directive
 
 Variables are defined by giving the variable name followed by equal sign followed by an expression yielding a numeric value:
 
 	CHROUT = $FFD2
 
 ## Directives
-Directive instruct the assembler to do certain things. They do not yield machine code but may produce output data. Names of directives start with a dot. The directives currently known to the assembler are:
+Directive instruct the assembler to do certain things. They may or may not produce output data. Names of directives start with a dot. The directives currently known to the assembler are:
 
 ### .ORG directive
 Sets the current program counter to the numeric value of the argument
@@ -158,7 +158,7 @@ The address is encoded in the word following the opcode and displaced by the con
 ### Zeropage X and zeropage Y addressing
 The address is encoded in the byte following the opcode and displaced by the contents for the X or Y register.
 
-	LDA <$4711,X	; load contents of address $11 displaced by X
+	LDA $47,X	; load contents of address $47 displaced by X
 	LDX >$4711,Y	; load contents of address $47 displaced by Y into X
 
 ### Indirect addressing
@@ -166,7 +166,7 @@ The word sized address is stored in the memory location given by the word sized 
 
 	JMP ($4711)
 
-This one is a syntax error, because the assembler assumes indirect addressing mode instead of a subexpression grouped by parentheses:
+The following one is a syntax error, because the assembler assumes indirect addressing mode instead of a subexpression grouped by parentheses:
 
 	JMP (2+3)*1000
 
@@ -174,11 +174,11 @@ If one wants to start an expression with ( while not indicating indirect address
 
 	JMP +(2+3)*1000
 
-Examples are given below:
+This one is correct (indirect addressing):
 
-	CLC		; clear carry: implicit addressing
-	ROR		; rotate right: accumulator addressing
-	LDA #42		; load A with 42: immediate addressing mode
-	LDA $4711	; load A with value at absolute address $4711
-	LDA $47		; load A with value of zero page address $47
-	
+	JMP ((2+3)*1000)
+
+## Indirect X and indirect Y addressing
+
+	ORA (15,x)
+	ORA (15),y
