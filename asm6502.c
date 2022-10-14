@@ -1,8 +1,10 @@
+/* ASM6502 */
+
+#define ID_LEN  32   /* maximum length of identifiers (variable names etc.) */
+
 #ifdef __BORLANDC__
 #pragma warn -sig
 #endif
-
-#define ID_LEN  32
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,21 +13,54 @@
 #include <setjmp.h>
 #include "asm6502.h"
 
-char *text = NULL;
-char *code = NULL;
 
-u16 pc = 0;    /* program counter */
-u16 oc = 0;    /* output counter */
-int errors = 0;
+static char *text = NULL;   /* holds the assembler source */
+static char *code = NULL;   /* holds the emitted code */
 
+/* program counter and output counter may not be in sync */
+/* this happens if an .org directive is used, which modifies the */
+/* program counter but not the output counter. */
+
+static u16 pc = 0;    /* program counter of currently assembled instruction */
+static u16 oc = 0;    /* counter of emitted output bytes */
+static int errors = 0;
+
+/* data type used when evaluating expressions */
+/* the value may be undefined */
+typedef struct value {
+   u16 v;   /* the numeric value */
+   u8  t;   /* type (none, byte or word) and state (defined or undefined) */
+} value;
+
+#define TYPE_NONE  0
+#define TYPE_BYTE  1
+#define TYPE_WORD  2
+
+/* data type for storing symbols (labels and variables) */
+typedef struct symbol {
+   char name[ID_LEN];
+   value value;
+   u8 kind;       /* is it a label or a variable? */
+   struct symbol *next;
+} symbol;
+
+#define KIND_LBL  1
+#define KIND_VAR  2
+
+static symbol *symbols = NULL;   /* global symbol table */
+
+
+/* symbol specific preprocessor directives */
+#define IS_LBL(x) (((x).kind & KIND_LBL) != 0)
+#define IS_VAR(x) (((x).kind & KIND_VAR) != 0)
+
+/* value specific preprocessor directives */
 #define VALUE_DEFINED 0x40
 #define DEFINED(x) (((x).t & VALUE_DEFINED) != 0)
 #define UNDEFINED(x) (((x).t & VALUE_DEFINED) == 0)
 #define KIND_DEFINED(x) ((x) != 0)
 
-#define TYPE_NONE  0
-#define TYPE_BYTE  1
-#define TYPE_WORD  2
+
 #define TYPE(v) ((v).t & 0x3f)
 #define SET_TYPE(v, u) ((v).t = ((v).t & VALUE_DEFINED) | (u))
 #define SET_DEFINED(v) ((v).t = ((v).t | VALUE_DEFINED))
@@ -36,24 +71,9 @@ int errors = 0;
 #define NUM_TYPE(x) (((x) < 0x100) ? TYPE_BYTE : TYPE_WORD)
 #define INFERE_TYPE(a,b) (((a).v >= 0x100) || ((b).v >= 0x100)) ? TYPE_WORD : MAXINT(TYPE(a),(TYPE(b)))
 
-typedef struct value {
-   u16 v;
-   u8  t;
-} value;
 
-#define KIND_LBL        0x01
-#define KIND_VAR        0x02
-#define IS_LBL(x) (((x).kind & KIND_LBL) != 0)
-#define IS_VAR(x) (((x).kind & KIND_VAR) != 0)
 
-typedef struct symbol {
-   char name[ID_LEN];
-   value value;
-   u8 kind;
-   struct symbol *next;
-} symbol;
 
-symbol *symbols = NULL;
 
 symbol *lookup(const char *name)
 {
@@ -205,7 +225,7 @@ value to_byte(value v)
    return v;
 }
 
-#define ishexdigit(x) (isdigit((x)) || (((x) >= 'a') && ((x) <= 'f')) || \
+#define IS_HEXDIGIT(x) (isdigit((x)) || (((x) >= 'a') && ((x) <= 'f')) || \
                        (((x) >= 'A') && ((x) <= 'F')))
 
 u16 digit(const char *p)
@@ -259,11 +279,11 @@ value number(char **p)
 
    if (**p == '$') {
       (*p)++;
-      if (!ishexdigit(**p)) error(ERR_NUM);
+      if (!IS_HEXDIGIT(**p)) error(ERR_NUM);
       do {
          num.v = (num.v << 4) + digit((*p)++);
       }
-      while (ishexdigit(**p));
+      while (IS_HEXDIGIT(**p));
       typ = ((*p-pt)>3) ? TYPE_WORD : NUM_TYPE(num.v);
       SET_TYPE(num, typ);
       SET_DEFINED(num);
