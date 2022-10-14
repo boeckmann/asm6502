@@ -42,10 +42,10 @@ The following example implements a hello world program for the Commodore C64. Co
 **The documentation is currently only a stub **
 
 ## Data types
-Two data types are known to the assembler: 8-bit unsigned byte values and 16-but unsigned word values. In most cases, the type of an expression is automatically determined.
+Two data types are known to the assembler: 8-bit unsigned byte and 16-bit unsigned word. In most cases, the type of an expression is automatically determined.
 
 ## Symbols
-The assembler distinguishes two types of case sensitive symbols: labels and variables. A label is defined at the beginning of a line by appending its name with a colon. Labels store the current address of the current instruction. Variables are defined by assigning an expression to them. In the following example, hello is a label and CHROUT is an expression. 
+The assembler distinguishes two types of case sensitive symbols: labels and variables. A label is defined at the beginning of a line by appending its name with a colon. Labels store the address of the current instruction or directive. Variables are defined by assigning an expression to them. In the following example, hello is a label and CHROUT is an expression. 
 
 	CHROUT = $ffd2
 	hello:	jmp CHROUT
@@ -61,24 +61,25 @@ There are many places where expressions may occur, for example on the right side
 	%1011	; binary byte constant
 	$00a	; hex word constant because more than 2 digits
 	0123	; decimal word constant because more than 3 digits
-	%1010	; binary byte constant
+	
+	-1	; word constant $FFFF (2-complement)
 
 Arithmetic operations may be used in expressions. Operator precedence is respected, as in the following example:
 
-	2+3\*5	; yields value 17
+	2+3*5	; yields value 17
 	
 The supported operations are the following:
 
   - lowest precedence: unary byte select: low byte (<) and high byte (>)
-  - addition (+), subtraction(-), bitwise or (|)
-  - multiplication (\*), bitwise and(&)
+  - unary and binary addition (+) and subtraction(-), bitwise or (|)
+  - multiplication (*), bitwise and(&)
   - highest precedence: expressions enclosed by parentheses
   
 Examples:
 
 	<$4711	; selects low word $11
 	>$4711		; selects high byte $47
-	+(x+2)\*5
+	+(x+2)*5
 
 In the last example the unary + is only needed if used as an instruction argument to destinguish from 6502 indirect addressing mode.
 
