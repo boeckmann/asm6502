@@ -77,7 +77,7 @@ The supported operations are the following:
   
 Examples:
 
-	<$4711	; selects low word $11
+	<$4711		; selects low byte $11
 	>$4711		; selects high byte $47
 	+(x+2)*5
 
