@@ -45,7 +45,7 @@ The following example implements a hello world program for the Commodore C64. Co
 Two data types are known to the assembler: 8-bit unsigned byte values and 16-but unsigned word values. In most cases, the type of an expression is automatically determined.
 
 ## Symbols
-The assembler distinguishes two types of symbols: labels and variables. A label is defined at the beginning of a line by appending its name with a colon. Labels store the current address of the current instruction. Variables are defined by assigning an expression to them. In the following example, hello is a label and CHROUT is an expression. 
+The assembler distinguishes two types of case sensitive symbols: labels and variables. A label is defined at the beginning of a line by appending its name with a colon. Labels store the current address of the current instruction. Variables are defined by assigning an expression to them. In the following example, hello is a label and CHROUT is an expression. 
 
 	CHROUT = $ffd2
 	hello:	jmp CHROUT
@@ -61,6 +61,7 @@ There are many places where expressions may occur, for example on the right side
 	%1011	; binary byte constant
 	$00a	; hex word constant because more than 2 digits
 	0123	; decimal word constant because more than 3 digits
+	%1010	; binary byte constant
 
 Arithmetic operations may be used in expressions. Operator precedence is respected, as in the following example:
 
@@ -81,6 +82,42 @@ Examples:
 
 In the last example the unary + is only needed if used as an instruction argument to destinguish from 6502 indirect addressing mode.
 
+## Line syntax
+Each line may end with a comment. Comments start with a semicolon.
+
+At the beginning of a line a label may be specified if the line does not contain a variable definition.
+
+	start:			; line consisting of a label comment
+	loop:	BNE loop	; label, instruction and comment
+	msg:	.byte "Hello"	; label followed by a directive and comment
+
+Variables are defined by giving the variable name followed by equal sign followed by an expression yielding a numeric value:
+
+	CHROUT = $FFD2
+
+## Directives
+Directive instruct the assembler to do certain things. They do not yield machine code but may produce output data. Names of directives start with a dot. The directives currently known to the assembler are:
+
+### .ORG directive
+Sets the current program counter to the numeric value of the argument
+
+	.ORG $0801
+
+### .BYTE directive
+Produces one or more output bytes. The arguments are separated by comma. Strings enclosed by " may also be used.
+
+	.BYTE 1
+	.BYTE 47, 11
+	.BYTE "Hello, World", 13, 10
+
+### .WORD directive
+Produces one or more output words.
+
+	.WORD $0801
+
+## Instructions
+In contrast to symbols, instruction mnemonics are case insensitive. Every assembler instruction consists of a mnemonic followed by at most one numeric argument including addressing mode specifiers.
+
 ## Addressing modes
 The assembler supports all MOS6502 addressing modes.
 
@@ -98,12 +135,12 @@ The byte sized argument is encoded in the byte following the opcode. The argumen
 ### Relative addressing
 Relative addressing is only used by branching instructions. The branch offset in the range of -128 to 127 is encoded by the byte following the opcode. The assembler interprets the argument, which may be any numeric expression, relative to the current program counter.
 
-	loop:	bne loop
+	loop:	BNE loop
 
 ### Absolute addressing
 A word sized address is encoded following the opcode byte. The assembler interpretes any word sized expression following an instruction mnemonic as an absolute address.
 
-	lda	$4711	; load contents of address $4711 into accumulator
+	LDA $4711	; load contents of address $4711 into accumulator
 
 ### Zeropage addressing
 A byte sized address is encoded following the opcode byte. The assembler interpretes any byte sized expression following an instruction mnemonic as a zeropage address.
@@ -130,11 +167,11 @@ The word sized address is stored in the memory location given by the word sized 
 
 This one is a syntax error, because the assembler assumes indirect addressing mode instead of a subexpression grouped by parentheses:
 
-	JMP (2+3)\*1000
+	JMP (2+3)*1000
 
 If one wants to start an expression with ( while not indicating indirect addressing to the assembler, one can for example write
 
-	JMP +(2+3)\*1000
+	JMP +(2+3)*1000
 
 Examples are given below:
 
