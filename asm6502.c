@@ -168,7 +168,7 @@ void error(int err)
    longjmp(error_jmp, err);
 }
 
-void deflbl(const char *id, u16 v)
+void define_label(const char *id, u16 v)
 {
    symbol *sym = aquire(id);
    if (IS_VAR(*sym) || (DEFINED(sym->value) && (sym->value.v != v))) error(ERR_REDEF);
@@ -177,7 +177,7 @@ void deflbl(const char *id, u16 v)
    sym->kind = KIND_LBL;
 }
 
-symbol * reservelbl(const char *id)
+symbol * reserve_label(const char *id)
 {
    symbol *sym = aquire(id);
    if (DEFINED(sym->value)) error(ERR_REDEF);
@@ -187,7 +187,7 @@ symbol * reservelbl(const char *id)
    return sym;
 }
 
-void defvar(const char *id, const value v)
+void define_variable(const char *id, const value v)
 {
    symbol *sym = aquire(id);
    if (DEFINED(sym->value) &&
@@ -215,26 +215,26 @@ u16 digit(const char *p)
    return (u16)(*p + 10 - 'a');
 }
 
-#define iseol(p) (((p) == 0x0a) || ((p) == 0x0d))
-#define isend(p) (((!(p)) || (p) == 0x0a) || ((p) == 0x0d))
+#define IS_EOL(p) (((p) == 0x0a) || ((p) == 0x0d))
+#define IS_END(p) (((!(p)) || (p) == 0x0a) || ((p) == 0x0d))
 
-void skipeol(char **p)
+void skip_eol(char **p)
 {
    if (**p == 0x0d) (*p)++;
    if (**p == 0x0a) (*p)++;
 }
 
-void skipw(char **p)
+void skip_white(char **p)
 {
    while ((**p == ' ') || (**p == '\t')) (*p)++;
 }
 
 void skipl(char **p)
 {
-   while (!isend(**p)) (*p)++;
+   while (!IS_END(**p)) (*p)++;
 }
 
-void skipwc(char **p)
+void skip_white_and_comment(char **p)
 {
    while ((**p == ' ') || (**p == '\t')) (*p)++;
    if (**p == ';') {
@@ -332,11 +332,11 @@ value primary(char **p)
    char id[ID_LEN];
    symbol *sym;
 
-   skipw(p);
+   skip_white(p);
    if (**p == '(') {
       (*p)++;
       res = expr(p);
-      skipw(p);
+      skip_white(p);
       if (**p != ')') error(ERR_UNBALANCED);
       (*p)++;
    }
@@ -354,7 +354,7 @@ value primary(char **p)
    else if (isalpha(**p)) {
       ident(p, id);
       sym = lookup(id);
-      if (!sym) sym = reservelbl(id);
+      if (!sym) sym = reserve_label(id);
       res = sym->value;
    }
    else res = number(p);
@@ -368,7 +368,7 @@ value product(char **p)
 
    res = primary(p);
 
-   skipw(p);
+   skip_white(p);
    op = **p;
 
    while((op == '*') || (op == '&')) {
@@ -386,7 +386,7 @@ value product(char **p)
 
       SET_TYPE(res, INFERE_TYPE(res, n2));
       INFERE_DEFINED(res, n2);
-      skipw(p);
+      skip_white(p);
       op = **p;
    }
 
@@ -398,7 +398,7 @@ value term(char **p)
    value n2, res;
    char op;
 
-   skipw(p);
+   skip_white(p);
    if (**p == '-') {
       (*p)++;
       res = product(p);
@@ -412,7 +412,7 @@ value term(char **p)
       res = product(p);
    }
 
-   skipw(p);
+   skip_white(p);
    op = **p;
 
    while ((op == '+') || (op == '-') || (op == '|')) {
@@ -431,7 +431,7 @@ value term(char **p)
       }
       SET_TYPE(res, INFERE_TYPE(res, n2));
       INFERE_DEFINED(res, n2);
-      skipw(p);
+      skip_white(p);
       op = **p;
    }
 
@@ -442,7 +442,7 @@ value expr(char **p)
 {
    value v;
 
-   skipw(p);
+   skip_white(p);
    if (**p == '>') {
       (*p)++;
       v = term(p);
@@ -581,7 +581,7 @@ int instruction_ind(char **p, int pass, idesc *instr)
 
    (*p)++;
    v = expr(p);
-   skipw(p);
+   skip_white(p);
 
    /* indirect X addressing mode? */
    if (**p == ',') {
@@ -589,7 +589,7 @@ int instruction_ind(char **p, int pass, idesc *instr)
       ident_upcase(p, id);
       if (strcmp(id, "X")) error(ERR_INX);
       am = AM_INX;
-      skipw(p);
+      skip_white(p);
       if (**p != ')') error(ERR_CLBR);
       skipnext(p);
    }
@@ -698,8 +698,8 @@ void instruction(char **p, int pass)
    if (!instr) error(ERR_INSTR);
 
    /* if found get addressing mode */
-   skipwc(p);
-   if (isend(**p)) {
+   skip_white_and_comment(p);
+   if (IS_END(**p)) {
       am = instruction_imp_acc(pass, instr);
    }
    else if (**p == '#') {
@@ -714,7 +714,7 @@ void instruction(char **p, int pass)
    /* relative and absolute addressing modes */
    else {
       v = expr(p);
-      skipw(p);
+      skip_white(p);
       /* relative instruction mode if instruction supports it */
       if (instr->op[AM_REL] != INV) {
          am = instruction_rel(pass, instr, v);
@@ -742,11 +742,11 @@ void directive_byte(char **p, int pass)
 
    do {
       next = 0;
-      skipw(p);
+      skip_white(p);
 
       if (**p == '"') {
          (*p)++;
-         while (!isend(**p) && (**p != '"')) {
+         while (!IS_END(**p) && (**p != '"')) {
             emit_b(**p, pass);
             (*p)++;
             pc++;
@@ -766,7 +766,7 @@ void directive_byte(char **p, int pass)
          pc++;
       }
 
-      skipw(p);
+      skip_white(p);
       if (**p == ',') {
          skipnext(p);
          next = 1;
@@ -782,7 +782,7 @@ void directive_word(char **p, int pass)
 
    do {
       next = 0;
-      skipw(p);
+      skip_white(p);
 
       v = expr(p);
 
@@ -792,7 +792,7 @@ void directive_word(char **p, int pass)
       emit_w(v.v, pass);
 
       pc+=2;
-      skipw(p);
+      skip_white(p);
       if (**p == ',') {
          skipnext(p);
          next = 1;
@@ -828,32 +828,32 @@ void directive(char **p, int pass)
    }
 }
 
-/* processes one statement or assembler instruction in phase 1 */
+/* processes one statement or assembler instruction */
 void statement(char **p, int pass)
 {
    char id1[ID_LEN];
    value v1;
    char *pt;
 
-   skipwc(p);
-   if (isend(**p)) return;
+   skip_white_and_comment(p);
+   if (IS_END(**p)) return;
    pt = *p;
 
    /* first check for variable or label definition */
    if (isalpha(**p)) {
       ident(p, id1);
-      skipw(p);
+      skip_white(p);
       if (**p == '=') { /* variable definition */
          (*p)++;
          v1 = expr(p);
-         defvar(id1, v1);
+         define_variable(id1, v1);
          return;
       }
       else if (**p == ':') {
          (*p)++;
-         deflbl(id1, pc);
-         skipwc(p);
-         if (isend(**p)) return;
+         define_label(id1, pc);
+         skip_white_and_comment(p);
+         if (IS_END(**p)) return;
       }
       else *p = pt;
    }
@@ -880,13 +880,11 @@ void pass(char **p, int pass)
    if (!(err = setjmp(error_jmp))) {
       while (**p) {
          statement(p, pass);
-         skipwc(p);
+         skip_white_and_comment(p);
 
-         //if (!(**p)) break;
+         if (!IS_END(**p)) error(ERR_EOL);
 
-         if (!isend(**p)) error(ERR_EOL);
-
-         skipeol(p);
+         skip_eol(p);
          line++;
       }
    }
