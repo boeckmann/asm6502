@@ -19,12 +19,11 @@ basic_upstart:				; BASIC code: 10 SYS 2062
 
 start:
 	ldx #0
-write:
-	lda hello_msg,x
+@l	lda hello_msg,x
 	jsr CHROUT
 	inx
 	cpx #hello_len
-	bne write
+	bne @l
 	rts
 
 hello_msg .byte "HELLO, WORLD!", CR, LF

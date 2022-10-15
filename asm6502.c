@@ -40,15 +40,17 @@ typedef struct value {
 typedef struct symbol {
    char name[ID_LEN];
    value value;
-   u8 kind;       /* is it a label or a variable? */
+   u8 kind;                /* is it a label or a variable? */
    struct symbol *next;
+   struct symbol *locals;  /* local subdefinitions */
 } symbol;
 
 #define KIND_LBL  1
 #define KIND_VAR  2
 
-static symbol *symbols = NULL;   /* global symbol table */
 
+static symbol *symbols = NULL;         /* global symbol table */
+static symbol *current_label = NULL;   /* search scope for local labels */
 
 /* symbol specific preprocessor directives */
 #define IS_LBL(x) (((x).kind & KIND_LBL) != 0)
@@ -72,12 +74,9 @@ static symbol *symbols = NULL;   /* global symbol table */
 #define INFERE_TYPE(a,b) (((a).v >= 0x100) || ((b).v >= 0x100)) ? TYPE_WORD : MAXINT(TYPE(a),(TYPE(b)))
 
 
-
-
-
-symbol *lookup(const char *name)
+symbol *lookup(const char *name, symbol *start)
 {
-   symbol *table = symbols;
+   symbol *table = start;
    while (table) {
       if (!strcmp(name, table->name)) return table;
       table = table->next;
@@ -87,7 +86,7 @@ symbol *lookup(const char *name)
 
 symbol *aquire(const char *name)
 {
-   symbol *sym = lookup(name);
+   symbol *sym = lookup(name, symbols);
    if (!sym) {
       sym = malloc(sizeof(symbol));
       strcpy(sym->name, name);
@@ -96,6 +95,23 @@ symbol *aquire(const char *name)
       sym->value.t = 0;
       sym->kind = 0;
       symbols = sym;
+   }
+   return sym;
+}
+
+symbol *aquire_local(const char *name)
+{
+   symbol *sym;
+   if (!current_label) return NULL;
+   sym = lookup(name, current_label->locals);
+   if (!sym) {
+      sym = malloc(sizeof(symbol));
+      strcpy(sym->name, name);
+      sym->value.v = 0;
+      sym->value.t = 0;
+      sym->kind = 0;
+      sym->next = current_label->locals;
+      current_label->locals = sym;
    }
    return sym;
 }
@@ -126,11 +142,18 @@ char sym_t2c(u8 typ)
 void dump_symbols(void)
 {
    symbol *sym = symbols;
+   symbol *locals;
    for (; sym; sym = sym->next) {
       if (DEFINED(sym->value))
          printf("%c %-16s %4x %c\n", sym_f2c(sym->kind), sym->name, sym->value.v, sym_t2c(sym->value.t));
       else
          printf("%c %-16s    ? %c\n", sym_f2c(sym->kind), sym->name, sym_t2c(sym->value.t));
+      if (IS_LBL(*sym)) {
+         
+         for (locals = sym->locals; locals; locals = locals->next) {
+            printf("   @%s: %04x\n", locals->name, locals->value.v);
+         }
+      }
    }
 }
 
@@ -155,6 +178,8 @@ void dump_symbols(void)
 #define ERR_RELRNG      19
 #define ERR_STREND      20
 #define ERR_BYTERNG     21
+#define ERR_LOCAL_REDEF 22
+#define ERR_NO_GLOBAL   23
 
 char *err_msg[] = {
    "",
@@ -178,7 +203,9 @@ char *err_msg[] = {
    "illegal type",
    "relative jump target out of range",
    "string not terminated",
-   "byte value out of range"
+   "byte value out of range",
+   "illegal redefinition of local label",
+   "local label definition requires previous global label"
 };
 
 jmp_buf error_jmp;
@@ -188,13 +215,29 @@ void error(int err)
    longjmp(error_jmp, err);
 }
 
-void define_label(const char *id, u16 v)
+symbol * define_label(const char *id, u16 v)
 {
    symbol *sym = aquire(id);
    if (IS_VAR(*sym) || (DEFINED(sym->value) && (sym->value.v != v))) error(ERR_REDEF);
    sym->value.v = v;
    sym->value.t = TYPE_WORD | VALUE_DEFINED;
    sym->kind = KIND_LBL;
+   return sym;
+}
+
+symbol * define_local_label(char *id, u16 v)
+{
+   symbol *sym;
+
+   printf("define_local_label\n");
+   if (!current_label) error(ERR_NO_GLOBAL);
+
+   sym = aquire_local(id);
+   if ((DEFINED(sym->value) && (sym->value.v != v))) error(ERR_LOCAL_REDEF);
+   sym->value.v = v;
+   sym->value.t = TYPE_WORD | VALUE_DEFINED;
+   sym->kind = KIND_LBL;
+   return sym;
 }
 
 symbol * reserve_label(const char *id)
@@ -367,13 +410,27 @@ value primary(char **p)
    }
    else if (**p == '@') {
       (*p)++;
-      res.v = pc;
-      SET_TYPE(res, TYPE_WORD);
-      SET_DEFINED(res);
+      
+      if (isalpha(**p)) {  /* local label*/
+         ident(p, id);
+         sym = lookup(id, current_label->locals);
+         if (sym) {
+            res = sym->value;
+         }
+         else {
+            res.v = 0;
+            res.t = 0;
+         }
+      }
+      else {               /* current program counter */
+         res.v = pc;
+         SET_TYPE(res, TYPE_WORD);
+         SET_DEFINED(res);
+      }
    }
    else if (isalpha(**p)) {
       ident(p, id);
-      sym = lookup(id);
+      sym = lookup(id, symbols);
       if (!sym) sym = reserve_label(id);
       res = sym->value;
    }
@@ -880,7 +937,7 @@ void statement(char **p, int pass)
    if (isalpha(**p)) {
       ident(p, id1);
       skip_white(p);
-      if (**p == '=') { /* variable definition */
+      if (**p == '=') {       /* variable definition */
          (*p)++;
          v1 = expr(p);
          define_variable(id1, v1);
@@ -888,11 +945,26 @@ void statement(char **p, int pass)
       }
       else if ((**p == ':') || (!ismnemonic(id1))) {
          if (**p == ':') (*p)++;
-         define_label(id1, pc);
+         
+         current_label = define_label(id1, pc);
+         
          skip_white_and_comment(p);
          if (IS_END(**p)) return;
       }
       else *p = pt;
+   }
+
+   /* local label definition */
+   else if (**p == '@') {
+      (*p)++;
+      ident(p, id1);
+      
+      define_local_label(id1, pc);
+      
+      skip_white(p);
+      if (**p == ':') (*p)++;
+      skip_white_and_comment(p);
+      if (IS_END(**p)) return;
    }
 
    /* check for directive or instruction */
@@ -927,7 +999,9 @@ void pass(char **p, int pass)
    }
    else {
       printf("error: line %d: %s\n", line, err_msg[err]);
-   }
+      skip_eol(p);
+      line++;
+   }      
 }
 
 char *load(const char *fn)
@@ -975,7 +1049,6 @@ int main(int argc, char *argv[])
 
    pass(&ttext, 1);
    if (errors) {
-      printf("abort: source contains errors\n");
       goto err1;
    }
 
@@ -983,7 +1056,6 @@ int main(int argc, char *argv[])
    code = malloc(oc);
    pass(&ttext, 2);
    if (errors) {
-      printf("abort: source contains errors\n");
       goto err2;
    }
 
@@ -996,7 +1068,7 @@ int main(int argc, char *argv[])
    }
 
 
-   /*dump_symbols();*/
+   dump_symbols();
    return EXIT_SUCCESS;
 
 err2:
