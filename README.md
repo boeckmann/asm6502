@@ -56,14 +56,14 @@ Variables may be of type byte or word, depending on the data type of the express
 ## Expressions
 There are many places where expressions may occur, for example on the right side of a variable definition or as an argument to a machine instruction. The most primitive form of an expression is a numeric constant, which can be given in decimal, hexadecimal or binary. The value of the constant determines its type. A small value can be forced to be of type word by prepending zeros.
 
-	5 ; decimal byte constant
-	$a  ; decimal byte constant
+	5     ; decimal byte constant
+	$a    ; decimal byte constant
 	$4711 ; hex word constant
 	%1011 ; binary byte constant
 	$00a  ; hex word constant because more than 2 digits
 	0123  ; decimal word constant because more than 3 digits
-	
-	-1  ; word constant $FFFF (2-complement)
+	'x'   ; byte typed ascii charactar code of x
+	-1    ; word constant $FFFF (2-complement)
 
 Arithmetic operations may be used in expressions. Operator precedence is respected, as in the following example:
 
@@ -73,8 +73,8 @@ Arithmetic operations may be used in expressions. Operator precedence is respect
 The supported operations are the following:
 
 	- lowest precedence: unary byte select: low byte (<) and high byte (>)
-	- unary and binary addition (+) and subtraction(-), bitwise or (|)
-	- multiplication (*), bitwise and(&)
+	- unary and binary addition (+) and subtraction(-), bitwise or (|), exclusive or (^)
+	- multiplication (*), division (/), bitwise and(&)
 	- highest precedence: expressions enclosed by parentheses
 	
 Examples:
