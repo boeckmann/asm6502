@@ -200,6 +200,7 @@ void dump_symbols(void)
 #define ERR_BYTERNG     21
 #define ERR_LOCAL_REDEF 22
 #define ERR_NO_GLOBAL   23
+#define ERR_CHR         24
 
 char *err_msg[] = {
    "",
@@ -225,7 +226,8 @@ char *err_msg[] = {
    "string not terminated",
    "byte value out of range",
    "illegal redefinition of local label",
-   "local label definition requires previous global label"
+   "local label definition requires previous global label",
+   "malformed character constant"
 };
 
 jmp_buf error_jmp;
@@ -446,6 +448,16 @@ value primary(char **p)
          SET_TYPE(res, TYPE_WORD);
          SET_DEFINED(res);
       }
+   }
+   else if (**p == '\'') {
+      (*p)++;
+      if (IS_END(**p) || (**p < 0x20)) error(ERR_CHR);
+      res.v = **p;
+      SET_TYPE(res, TYPE_BYTE);
+      SET_DEFINED(res);
+      (*p)++;
+      if (**p != '\'') error(ERR_CHR);
+      (*p)++;
    }
    else if (isalpha(**p)) {
       ident(p, id);
