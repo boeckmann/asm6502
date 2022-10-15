@@ -163,11 +163,9 @@ void dump_symbols(void)
    symbol *sym = symbols;
    symbol *locals;
 
-   if (!debug) return;
-
    for (; sym; sym = sym->next) {
       if (DEFINED(sym->value))
-         printf("%c %-16s %4x %c\n", sym_f2c(sym->kind), sym->name, sym->value.v, sym_t2c(sym->value.t));
+         printf("%c %c %4x %-16s \n", sym_f2c(sym->kind), sym_t2c(sym->value.t), sym->value.v, sym->name);
       else
          printf("%c %-16s    ? %c\n", sym_f2c(sym->kind), sym->name, sym_t2c(sym->value.t));
       if (IS_LBL(*sym)) {
@@ -1091,7 +1089,7 @@ int main(int argc, char *argv[])
       goto ret2;
    }
 
-   dump_symbols();
+   if (debug) dump_symbols();
 
 ret2:
    free(code);

@@ -3,28 +3,27 @@
 
 LOAD_ADDR = $0801
 
-	.word LOAD_ADDR			; .PRG header: load address
-	.org  LOAD_ADDR
+        .word LOAD_ADDR         ; .PRG header: load address
+        .org  LOAD_ADDR
 
-CHROUT = $FFD2				; kernel function address
-SYS    = $9E				; basic SYS token number
-CR     = 13					; carrige return character
-LF     = %1010				; line feed character
+CHROUT = $FFD2                  ; kernal function address
+SYS    = $9E                    ; basic SYS token number
+CR     = 13                     ; carrige return character
+LF     = %1010                  ; line feed character
 
-basic_upstart:				; BASIC code: 10 SYS 2062
-	.word basic_end, %1010
-	.byte SYS, " 2062", 0
-  basic_end:
-	.word 0 
+basic_upstart:                  ; BASIC code: 10 SYS 2062
+        .word @end, 10          ; ptr to next basic line and line number 10
+        .byte SYS, " 2062", 0   ; SYS token and address string of subroutine
+@end    .word 0                 ; null ptr to indicate end of basic text
 
-start:
-	ldx #0
-@l	lda hello_msg,x
-	jsr CHROUT
-	inx
-	cpx #hello_len
-	bne @l
-	rts
+start:                          ; this is at address 2062 ($080E)
+        ldx #0
+@l      lda hello_msg,x
+        jsr CHROUT
+        inx
+        cpx #hello_len
+        bne @l
+        rts
 
 hello_msg .byte "HELLO, WORLD!", CR, LF
-hello_len =	@ - hello_msg
+hello_len = @ - hello_msg
