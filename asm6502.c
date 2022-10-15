@@ -84,16 +84,38 @@ symbol *lookup(const char *name, symbol *start)
    return NULL;
 }
 
+symbol * new_symbol(const char *name)
+{
+   symbol *sym = malloc(sizeof(symbol));
+   strcpy(sym->name, name);
+   sym->value.v = 0;
+   sym->value.t = 0;
+   sym->kind = 0;
+   sym->locals = NULL;
+   return sym;   
+}
+
+void free_symbols(symbol **sym)
+{
+   symbol *curr, *next;
+   curr = *sym;
+
+   while (curr) {
+      if (curr->locals) free_symbols(&(curr->locals));
+      next = curr->next;
+      free(curr);
+      curr = next;
+   }
+
+   *sym = NULL;
+}
+
 symbol *aquire(const char *name)
 {
    symbol *sym = lookup(name, symbols);
    if (!sym) {
-      sym = malloc(sizeof(symbol));
-      strcpy(sym->name, name);
+      sym = new_symbol(name);
       sym->next = symbols;
-      sym->value.v = 0;
-      sym->value.t = 0;
-      sym->kind = 0;
       symbols = sym;
    }
    return sym;
@@ -105,11 +127,7 @@ symbol *aquire_local(const char *name)
    if (!current_label) return NULL;
    sym = lookup(name, current_label->locals);
    if (!sym) {
-      sym = malloc(sizeof(symbol));
-      strcpy(sym->name, name);
-      sym->value.v = 0;
-      sym->value.t = 0;
-      sym->kind = 0;
+      sym = new_symbol(name);
       sym->next = current_label->locals;
       current_label->locals = sym;
    }
@@ -229,7 +247,6 @@ symbol * define_local_label(char *id, u16 v)
 {
    symbol *sym;
 
-   printf("define_local_label\n");
    if (!current_label) error(ERR_NO_GLOBAL);
 
    sym = aquire_local(id);
@@ -983,6 +1000,7 @@ void pass(char **p, int pass)
 {
    int err;
    line = 1;
+   current_label = NULL;
    pc = 0;
    oc = 0;
 
@@ -1044,37 +1062,39 @@ int main(int argc, char *argv[])
 
    if (!(ttext = text = load(argv[1]))) {
       printf("error loading file\n");
-      goto err0;
+      errors = 1;
+      goto ret0;
    }
 
    pass(&ttext, 1);
    if (errors) {
-      goto err1;
+      goto ret1;
    }
 
    ttext = text;
    code = malloc(oc);
    pass(&ttext, 2);
    if (errors) {
-      goto err2;
+      goto ret2;
    }
 
    printf("output size = %d bytes\n", oc);
-   fflush(stdout);
 
    if (!save(argv[2], code, oc)) {
       printf("error saving file\n");
-      goto err2;
+      errors = 1;
+      goto ret2;
    }
 
-
    dump_symbols();
-   return EXIT_SUCCESS;
 
-err2:
+ret2:
    free(code);
-err1:
+ret1:
    free(text);
-err0:
-   return EXIT_FAILURE;
+ret0:
+   free_symbols(&symbols);
+
+   if (errors) return EXIT_FAILURE;
+   else return EXIT_SUCCESS;
 }
