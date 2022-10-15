@@ -3,7 +3,7 @@ Early version of my 6502 assembler implementation. Hopefully ANSI C conformant. 
 
 
 ## Example
-The following example implements a hello world program for the Commodore C64. Compile with `asm6502 helloc64.asm helloc64.prg`.
+The following example implements a hello world program for the Commodore C64. Assemble with `asm6502 helloc64.asm helloc64.prg`.
 
 	; C64 Hello World
 	; assemble to .PRG file: asm6502 helloc64.asm helloc64.prg
@@ -37,7 +37,7 @@ The following example implements a hello world program for the Commodore C64. Co
 
 
 
-## Description
+## Documentation
 *The documentation is currently only a stub*
 
 ## Data types
