@@ -7,50 +7,50 @@ The following example implements a hello world program for the Commodore C64. Co
 
 	; C64 Hello World
 	; assemble to .PRG file: asm6502 helloc64.asm helloc64.prg
-
+	
 	LOAD_ADDR = $0801
-
-		.word LOAD_ADDR			; .PRG header: load address
-		.org  LOAD_ADDR
-
-	CHROUT = $FFD2				; kernel function address
-	SYS    = $9E				; basic SYS token number
-	CR     = 13				; carrige return character
-	LF     = %1010				; line feed character
-
-	basic_upstart:				; BASIC code: 10 SYS 2062
-		.word basic_end, %1010
-		.byte SYS, " 2062", 0
-	  basic_end:
-		.word 0 
-
+	
+    	.word LOAD_ADDR         ; .PRG header: load address
+    	.org  LOAD_ADDR
+	
+	CHROUT = $FFD2              ; kernel function address
+	SYS    = $9E                ; basic SYS token number
+	CR     = 13                 ; carrige return character
+	LF     = %1010              ; line feed character
+	
+	basic_upstart:              ; BASIC code: 10 SYS 2062
+    	.word basic_end, %1010
+    	.byte SYS, " 2062", 0
+  	basic_end:
+    	.word 0 
+	
 	start:
-		ldx #0
-	write:
-		lda hello_msg,x
-		jsr CHROUT
-		inx
-		cpx #hello_len
-		bne write
-		rts
-
-	hello_msg :	.byte "HELLO, WORLD!", CR, LF
-	hello_len =	@ - hello_msg
-
+    	ldx #0
+	@l  lda hello_msg,x
+    	jsr CHROUT
+    	inx
+    	cpx #hello_len
+    	bne @l
+    	rts
+	
+	hello_msg .byte "HELLO, WORLD!", CR, LF
+	hello_len = @ - hello_msg
 
 ## Description
-**The documentation is currently only a stub **
+*The documentation is currently only a stub*
 
 ## Data types
 Two data types are known to the assembler: 8-bit unsigned byte and 16-bit unsigned word. In most cases, the type of an expression is automatically determined.
 
 ## Symbols
-The assembler distinguishes two types of case sensitive symbols: labels and variables. A label is defined at the beginning of a line by appending its name with a colon. Labels store the address of the current instruction or directive. Variables are defined by assigning an expression to them. In the following example, hello is a label and CHROUT is an expression. 
+The assembler distinguishes two types of case sensitive symbols: labels and variables. A label is defined at the beginning of a line by appending its name with a colon. The colon may be left out if the label name is not also an instruction mnemonic. Labels store the address of the current instruction or directive. Variables are defined by assigning an expression to them. In the following example, hello is a label and CHROUT is an expression. 
 
 	CHROUT = $ffd2
 	hello:	jmp CHROUT
 
-Labels are always of type word. Variables may be of type byte or word, depending on the data type of the expression.
+Labels are always of type word. Labels may be defined as local labels by prefixing them with `@`. Their scope reaches from the previously defined non-local label to the next non-local label. 
+
+Variables may be of type byte or word, depending on the data type of the expression.
 
 ## Expressions
 There are many places where expressions may occur, for example on the right side of a variable definition or as an argument to a machine instruction. The most primitive form of an expression is a numeric constant, which can be given in decimal, hexadecimal or binary. The value of the constant determines its type. A small value can be forced to be of type word by prepending zeros.
@@ -67,6 +67,7 @@ There are many places where expressions may occur, for example on the right side
 Arithmetic operations may be used in expressions. Operator precedence is respected, as in the following example:
 
 	2+3*5	; yields value 17
+	@ - 2 ; current program counter - 2
 	
 The supported operations are the following:
 
@@ -82,6 +83,9 @@ Examples:
 	+(x+2)*5
 
 In the last example the unary + is only needed if used as an instruction argument to destinguish from 6502 indirect addressing mode.
+
+### Current Program Counter
+The special symbol `@` evaluates to the current program counter. It may not be confused with a local label, like `@abc`.
 
 ## Line syntax
 Each line may end with a comment. Comments start with a semicolon.
