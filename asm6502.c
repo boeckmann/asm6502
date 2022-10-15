@@ -56,21 +56,19 @@ static symbol *current_label = NULL;   /* search scope for local labels */
 /* symbol specific preprocessor directives */
 #define IS_LBL(x) (((x).kind & KIND_LBL) != 0)
 #define IS_VAR(x) (((x).kind & KIND_VAR) != 0)
+#define KIND_DEFINED(x) ((x) != 0)
 
 /* value specific preprocessor directives */
 #define VALUE_DEFINED 0x40
 #define DEFINED(x) (((x).t & VALUE_DEFINED) != 0)
 #define UNDEFINED(x) (((x).t & VALUE_DEFINED) == 0)
-#define KIND_DEFINED(x) ((x) != 0)
-
-
-#define TYPE(v) ((v).t & 0x3f)
-#define SET_TYPE(v, u) ((v).t = ((v).t & VALUE_DEFINED) | (u))
 #define SET_DEFINED(v) ((v).t = ((v).t | VALUE_DEFINED))
 #define SET_UNDEFINED(v) ((v).t = (v).t & 0x3f);
 #define INFERE_DEFINED(a,b) if (UNDEFINED(a) || UNDEFINED(b)) { SET_UNDEFINED(a); } else { SET_DEFINED(a); }
 
-#define MAXINT(a,b) (((b) >= (a)) ? (b) : (a))
+/* type specific preprocessor directives */
+#define TYPE(v) ((v).t & 0x3f)
+#define SET_TYPE(v, u) ((v).t = ((v).t & VALUE_DEFINED) | (u))
 #define NUM_TYPE(x) (((x) < 0x100) ? TYPE_BYTE : TYPE_WORD)
 #define INFERE_TYPE(a,b) (((a).v >= 0x100) || ((b).v >= 0x100)) ? TYPE_WORD : MAXINT(TYPE(a),(TYPE(b)))
 
@@ -445,16 +443,16 @@ value primary(char **p)
       }
       else {               /* current program counter */
          res.v = pc;
-         SET_TYPE(res, TYPE_WORD);
-         SET_DEFINED(res);
+         res.t = TYPE_WORD | VALUE_DEFINED;
       }
    }
    else if (**p == '\'') {
       (*p)++;
       if (IS_END(**p) || (**p < 0x20)) error(ERR_CHR);
+
       res.v = **p;
-      SET_TYPE(res, TYPE_BYTE);
-      SET_DEFINED(res);
+      res.t = TYPE_WORD | VALUE_DEFINED;
+
       (*p)++;
       if (**p != '\'') error(ERR_CHR);
       (*p)++;

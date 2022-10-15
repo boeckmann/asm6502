@@ -38,4 +38,7 @@ extern const int itbl_size;
 extern u16 am_size[13];
 
 #define AM_VALID(idesc, am) ((idesc).op[am] != INV)
+
+#define MAXINT(a,b) (((b) >= (a)) ? (b) : (a))
+
 #endif
