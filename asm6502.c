@@ -263,7 +263,7 @@ void skip_white_and_comment(char **p)
    }
 }
 
-void skipnext(char **p)
+void skip_curr_and_white(char **p)
 {
    (*p)++;
    while ((**p == ' ') || (**p == '\t')) {
@@ -498,7 +498,7 @@ idesc *getidesc(const char *p)
    return NULL;
 }
 
-void emit_b(u8 b, int pass)
+void emit_byte(u8 b, int pass)
 {
    if (pass == 2) {
       code[oc] = b;
@@ -506,7 +506,7 @@ void emit_b(u8 b, int pass)
    oc+=1;
 }
 
-void emit_w(u16 w, int pass)
+void emit_word(u16 w, int pass)
 {
    if (pass == 2) {
       code[oc] = w & 0xff;
@@ -515,7 +515,8 @@ void emit_w(u16 w, int pass)
    oc+=2;
 }
 
-void emit_0(idesc *instr, int am, int pass)
+/* emit instruction without argument */
+void emit_instr_0(idesc *instr, int am, int pass)
 {
    if (pass == 2) {
       code[oc] = instr->op[am];
@@ -523,7 +524,8 @@ void emit_0(idesc *instr, int am, int pass)
    oc+=1;
 }
 
-void emit_1(idesc *instr, int am, u8 o, int pass)
+/* emit instruction with byte argument */
+void emit_instr_1(idesc *instr, int am, u8 o, int pass)
 {
    if (pass == 2) {
       code[oc] = instr->op[am];
@@ -532,7 +534,8 @@ void emit_1(idesc *instr, int am, u8 o, int pass)
    oc+=2;
 }
 
-void emit_2(idesc *instr, int am, u16 o, int pass)
+/* emit instruction with word argument */
+void emit_instr_2(idesc *instr, int am, u16 o, int pass)
 {
    if (pass == 2) {
       code[oc] = instr->op[am];
@@ -550,7 +553,7 @@ int instruction_imp_acc(int pass, idesc *instr)
    else if (instr->op[AM_IMP] != INV) am = AM_IMP;
    else error(ERR_AM);
 
-   emit_0(instr, am, pass);
+   emit_instr_0(instr, am, pass);
 
    return am;
 }
@@ -566,7 +569,7 @@ int instruction_imm(char **p, int pass, idesc *instr)
    if (pass == 2) {
       if (UNDEFINED(v)) error(ERR_UNDEF);
    }
-   emit_1(instr, am, (u8)to_byte(v).v, pass);
+   emit_instr_1(instr, am, (u8)to_byte(v).v, pass);
    return am;
 }
 
@@ -587,7 +590,7 @@ int instruction_rel(int pass, idesc *instr, value v)
    }
    if (v.v >= pct) off = v.v - pct;
    else off = (u16)((~0u) - (pct - v.v - 1u));
-   emit_1(instr, am, off & 0xffu, pass);
+   emit_instr_1(instr, am, off & 0xffu, pass);
 
    return am;
 }
@@ -605,20 +608,20 @@ int instruction_ind(char **p, int pass, idesc *instr)
 
    /* indirect X addressing mode? */
    if (**p == ',') {
-      skipnext(p);
+      skip_curr_and_white(p);
       ident_upcase(p, id);
       if (strcmp(id, "X")) error(ERR_INX);
       am = AM_INX;
       skip_white(p);
       if (**p != ')') error(ERR_CLBR);
-      skipnext(p);
+      skip_curr_and_white(p);
    }
    else {
       if (**p != ')') error(ERR_CLBR);
-      skipnext(p);
+      skip_curr_and_white(p);
       /* indirect Y addressing mode? */
       if (**p == ',') {
-         skipnext(p);
+         skip_curr_and_white(p);
          ident_upcase(p, id);
          if (strcmp(id, "Y")) error(ERR_INY);
          am = AM_INY;
@@ -636,10 +639,10 @@ int instruction_ind(char **p, int pass, idesc *instr)
    }
 
    if (am == AM_IND) {
-      emit_2(instr, am, v.v, pass);
+      emit_instr_2(instr, am, v.v, pass);
    }
    else {
-      emit_1(instr, am, (u8)v.v, pass);
+      emit_instr_1(instr, am, (u8)v.v, pass);
    }
 
    return am;
@@ -671,10 +674,10 @@ int instruction_abxy_zpxy(char **p, int pass, idesc *instr, value v)
    }
 
    if ((am == AM_ZPX) || (am == AM_ZPY)) {
-      emit_1(instr, am, (u8) v.v, pass);
+      emit_instr_1(instr, am, (u8) v.v, pass);
    }
    else {
-      emit_2(instr, am, v.v, pass);
+      emit_instr_2(instr, am, v.v, pass);
    }
 
 
@@ -691,14 +694,14 @@ int instruction_abs_zp(int pass, idesc *instr, value v)
       if (pass == 2) {
          if (UNDEFINED(v)) error(ERR_UNDEF);
       }
-      emit_1(instr, am, (u8)v.v, pass);
+      emit_instr_1(instr, am, (u8)v.v, pass);
    }
    else if (AM_VALID(*instr, AM_ABS)) {
       am = AM_ABS;
       if (pass == 2) {
          if (UNDEFINED(v)) error(ERR_UNDEF);
       }
-      emit_2(instr, am, v.v, pass);
+      emit_instr_2(instr, am, v.v, pass);
    }
    else error(ERR_AM);
    return am;
@@ -741,7 +744,7 @@ void instruction(char **p, int pass)
       }
       /* else we go through the possible absolute addressing modes */
       else if (**p == ',') {
-         skipnext(p);
+         skip_curr_and_white(p);
          am = instruction_abxy_zpxy(p, pass, instr, v);
       }
       /* must be absolute or zeropage addressing */
@@ -767,7 +770,7 @@ void directive_byte(char **p, int pass)
       if (**p == '"') {
          (*p)++;
          while (!IS_END(**p) && (**p != '"')) {
-            emit_b(**p, pass);
+            emit_byte(**p, pass);
             (*p)++;
             pc++;
          }
@@ -781,14 +784,14 @@ void directive_byte(char **p, int pass)
             if (UNDEFINED(v)) error (ERR_UNDEF);
             if (TYPE(v) != TYPE_BYTE) error(ERR_ILLTYPE);
          }
-         emit_b((u8)to_byte(v).v, pass);
+         emit_byte((u8)to_byte(v).v, pass);
 
          pc++;
       }
 
       skip_white(p);
       if (**p == ',') {
-         skipnext(p);
+         skip_curr_and_white(p);
          next = 1;
       }
    }
@@ -809,12 +812,12 @@ void directive_word(char **p, int pass)
       if (pass == 2) {
          if (UNDEFINED(v)) error (ERR_UNDEF);
       }
-      emit_w(v.v, pass);
+      emit_word(v.v, pass);
 
       pc+=2;
       skip_white(p);
       if (**p == ',') {
-         skipnext(p);
+         skip_curr_and_white(p);
          next = 1;
       }
    }
@@ -848,6 +851,20 @@ void directive(char **p, int pass)
    }
 }
 
+int ismnemonic(const char *id)
+{
+   char id1[ID_LEN];
+   int i;
+   
+   strcpy(id1, id);
+   upcase(id1);
+
+   for (i=0; i<itbl_size; i++) {
+      if (!strcmp(id1, itbl[i].mn)) return 1;
+   }
+   return 0;
+}
+
 /* processes one statement or assembler instruction */
 void statement(char **p, int pass)
 {
@@ -869,8 +886,8 @@ void statement(char **p, int pass)
          define_variable(id1, v1);
          return;
       }
-      else if (**p == ':') {
-         (*p)++;
+      else if ((**p == ':') || (!ismnemonic(id1))) {
+         if (**p == ':') (*p)++;
          define_label(id1, pc);
          skip_white_and_comment(p);
          if (IS_END(**p)) return;

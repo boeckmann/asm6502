@@ -9,7 +9,6 @@ typedef long i32;
 typedef unsigned char u8;
 typedef unsigned short u16;
 typedef unsigned long u32;
-typedef int bool;
 
 #define AM_ACC 0
 #define AM_IMP 1
@@ -34,6 +33,8 @@ typedef struct idesc {
 } idesc;
 
 extern idesc itbl[56];
+extern const int itbl_size;
+
 extern u16 am_size[13];
 
 #define AM_VALID(idesc, am) ((idesc).op[am] != INV)

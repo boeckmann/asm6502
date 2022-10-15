@@ -27,5 +27,5 @@ write:
 	bne write
 	rts
 
-hello_msg :	.byte "HELLO, WORLD!", CR, LF
+hello_msg .byte "HELLO, WORLD!", CR, LF
 hello_len =	@ - hello_msg
