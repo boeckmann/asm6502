@@ -13,9 +13,10 @@
 #include <setjmp.h>
 #include "asm6502.h"
 
+static int debug = 0;      /* set DEBUG env variable to enable debug output */      
 
-static char *text = NULL;   /* holds the assembler source */
-static char *code = NULL;   /* holds the emitted code */
+static char *text = NULL;  /* holds the assembler source */
+static char *code = NULL;  /* holds the emitted code */
 
 /* program counter and output counter may not be in sync */
 /* this happens if an .org directive is used, which modifies the */
@@ -161,6 +162,9 @@ void dump_symbols(void)
 {
    symbol *sym = symbols;
    symbol *locals;
+
+   if (!debug) return;
+
    for (; sym; sym = sym->next) {
       if (DEFINED(sym->value))
          printf("%c %-16s %4x %c\n", sym_f2c(sym->kind), sym->name, sym->value.v, sym_t2c(sym->value.t));
@@ -1055,6 +1059,7 @@ int main(int argc, char *argv[])
 {
    char *ttext;
 
+   debug = (getenv("DEBUG") != NULL);
    if ((argc != 3) || !strcmp(argv[1], argv[2])) {
       printf("Usage: asm6502 input output\n");
       return EXIT_SUCCESS;
