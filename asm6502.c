@@ -485,11 +485,11 @@ value product(char **p)
 
       switch (op) {
          case '*':
-            res.v = (u16)(res.v * n2.v);
-            break;
+            res.v = (u16)(res.v * n2.v); break;
+         case '/':
+            res.v = (u16)(res.v / n2.v); break;
          case '&':
-            res.v = (u16)(res.v & n2.v);
-            break;
+            res.v = (u16)(res.v & n2.v); break;
       }
 
       SET_TYPE(res, INFERE_TYPE(res, n2));
@@ -511,7 +511,7 @@ value term(char **p)
       (*p)++;
       res = product(p);
       res.v = -res.v;
-      if (DEFINED(res)) SET_TYPE(res, NUM_TYPE(res.v));
+      SET_TYPE(res, TYPE_WORD);
    }
    else {
       if(**p == '+') {
@@ -529,13 +529,13 @@ value term(char **p)
 
       switch (op) {
          case '+':
-            res.v = res.v + n2.v;
-            break;
+            res.v = res.v + n2.v; break;
          case '-':
-            res.v = res.v - n2.v;
-            break;
+            res.v = res.v - n2.v; break;
          case '|':
-            res.v = res.v | n2.v;
+            res.v = res.v | n2.v; break;
+         case '^':
+            res.v = res.v ^ n2.v; break;
       }
       SET_TYPE(res, INFERE_TYPE(res, n2));
       INFERE_DEFINED(res, n2);
