@@ -44,7 +44,7 @@ The following example implements a hello world program for the Commodore C64. As
 Two data types are known to the assembler: 8-bit unsigned byte and 16-bit unsigned word. In most cases, the type of an expression is automatically determined.
 
 ## Symbols
-The assembler distinguishes two types of case sensitive symbols: labels and variables. A label is defined at the beginning of a line by appending its name with a colon. The colon may be left out if the label name is not also an instruction mnemonic. Labels store the address of the current instruction or directive. Variables are defined by assigning an expression to them. In the following example, hello is a label and CHROUT is an expression. 
+The assembler distinguishes two types of case sensitive symbols: labels and variables. A label is defined at the beginning of a line by appending its name with a colon. The colon may be left out if the label name is not also an instruction mnemonic. Labels store the address of the current instruction or directive. Variables are defined by assigning an expression to them. In the following example, hello is a label and CHROUT is a variable. 
 
 	CHROUT = $ffd2
 	hello:  jmp CHROUT
