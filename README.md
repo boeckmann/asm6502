@@ -10,8 +10,8 @@ The following example implements a hello world program for the Commodore C64. Co
 	
 	LOAD_ADDR = $0801
 	
-			.word LOAD_ADDR         ; .PRG header: load address
-			.org  LOAD_ADDR
+        	.word LOAD_ADDR         ; .PRG header: load address
+        	.org  LOAD_ADDR
 	
 	CHROUT = $FFD2              ; kernel function address
 	SYS    = $9E                ; basic SYS token number
@@ -19,22 +19,22 @@ The following example implements a hello world program for the Commodore C64. Co
 	LF     = %1010              ; line feed character
 	
 	basic_upstart:              ; BASIC code: 10 SYS 2062
-			.word basic_end, %1010
-			.byte SYS, " 2062", 0
-		basic_end:
-			.word 0 
+        	.word @end, %1010
+        	.byte SYS, " 2062", 0
+	@end    .word 0 
 	
 	start:
-			ldx #0
-	@l  lda hello_msg,x
-			jsr CHROUT
-			inx
-			cpx #hello_len
-			bne @l
-			rts
+        	ldx #0
+	@l      lda hello_msg,x
+        	jsr CHROUT
+        	inx
+        	cpx #hello_len
+        	bne @l
+        	rts
 	
 	hello_msg .byte "HELLO, WORLD!", CR, LF
 	hello_len = @ - hello_msg
+
 
 
 ## Description
