@@ -165,13 +165,13 @@ void dump_symbols(void)
 
    for (; sym; sym = sym->next) {
       if (DEFINED(sym->value))
-         printf("%c %c %4x %-16s \n", sym_f2c(sym->kind), sym_t2c(sym->value.t), sym->value.v, sym->name);
+         printf("%c %c %04x %s\n", sym_f2c(sym->kind), sym_t2c(sym->value.t), sym->value.v, sym->name);
       else
-         printf("%c %-16s    ? %c\n", sym_f2c(sym->kind), sym->name, sym_t2c(sym->value.t));
+         printf("%c %c    ? %s\n", sym_f2c(sym->kind), sym_t2c(sym->value.t), sym->name);
       if (IS_LBL(*sym)) {
          
          for (locals = sym->locals; locals; locals = locals->next) {
-            printf("   @%s: %04x\n", locals->name, locals->value.v);
+            printf("           %04x @%s\n", locals->value.v, locals->name);
          }
       }
    }
