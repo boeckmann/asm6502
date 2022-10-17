@@ -7,6 +7,14 @@
 *.tag
 output
 
+# watcom files
+*.mk
+*.mk1
+*.lk
+*.lk1
+*.map
+*.obj
+
 # operating system stuff
 .DS_Store
 .syncthing*
