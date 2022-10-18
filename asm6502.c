@@ -24,14 +24,12 @@ static char *code = NULL;  /* holds the emitted code */
 static int text_len = 0;
 static int line;           /* currently processed line of file */
 
-/* text variable holds all the assembler source */
-/* every file contained in text is separated by an EOF character */
-/* from the other files, which may be inserted by an .include directive */
-/* the filenames variable stores the filenames of all included files */
-/* if a file A includes file B, filenames contains A, B, A */
-/* if the assembler sees an EOF character, line variable is reset to 1 */
-/* and the current filename pointer is increased, so that for every */
-/* text position the file and line into the file can be determined */
+/* The text variable holds all the assembler source.
+   The files contained in text are separated by an EOF character. 
+   The filenames variable stores the filenames of all included files. 
+   If a file A includes file B, filenames contains A, B, A.
+   filelines stores the starting or continuation the line numbers
+   of included files or their parent. */
 
 #define MAX_FILENAMES 33 /* maximum include files */
 
