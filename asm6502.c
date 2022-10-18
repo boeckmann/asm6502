@@ -2,7 +2,6 @@
 
 #define ID_LEN 32 /* maximum length of identifiers (variable names etc.) */
 #define STR_LEN 128 /* maximum length of string literals */
-#define MAX_FILENAMES 32 /* maximum include files */
 
 #ifdef __BORLANDC__
 #pragma warn -sig
@@ -22,7 +21,26 @@ static int debug = 0;      /* set DEBUG env variable to enable debug output */
 /* the source file can be determined */
 static char *text = NULL;  /* holds the assembler source */
 static char *code = NULL;  /* holds the emitted code */
+static int text_len = 0;
+static int line;           /* currently processed line of file */
 
+/* text variable holds all the assembler source */
+/* every file contained in text is separated by an EOF character */
+/* from the other files, which may be inserted by an .include directive */
+/* the filenames variable stores the filenames of all included files */
+/* if a file A includes file B, filenames contains A, B, A */
+/* if the assembler sees an EOF character, line variable is reset to 1 */
+/* and the current filename pointer is increased, so that for every */
+/* text position the file and line into the file can be determined */
+
+#define MAX_FILENAMES 33 /* maximum include files */
+
+static char *filenames[MAX_FILENAMES];
+static int filelines[MAX_FILENAMES];
+static int filenames_idx = 0;
+static int filenames_len = 0;
+
+#define EOF_CHAR 0x1a
 
 /* program counter and output counter may not be in sync */
 /* this happens if an .org directive is used, which modifies the */
@@ -30,7 +48,6 @@ static char *code = NULL;  /* holds the emitted code */
 
 static u16 pc = 0;    /* program counter of currently assembled instruction */
 static u16 oc = 0;    /* counter of emitted output bytes */
-static int errors = 0;
 
 /* data type used when evaluating expressions */
 /* the value may be undefined */
@@ -207,6 +224,8 @@ void dump_symbols(void)
 #define ERR_CHR         24
 #define ERR_STRLEN      25
 #define ERR_STR         26
+#define ERR_OPEN        27
+#define ERR_MAXINC      28
 
 char *err_msg[] = {
    "",
@@ -235,13 +254,30 @@ char *err_msg[] = {
    "local label definition requires previous global label",
    "malformed character constant",
    "string too long",
-   "string expected"
+   "string expected",
+   "can not open file",
+   "maximum number of include files reached"
 };
+
+#define ERROR_NORM 1
+#define ERROR_EXT  2 /* extended error with additional message */
+static char error_hint[128];
+static int errors = 0;
+static int error_type = 0;
 
 jmp_buf error_jmp;
 void error(int err)
 {
    errors++;
+   error_type = ERROR_NORM;
+   longjmp(error_jmp, err);
+}
+
+void error_ext(int err, const char *msg)
+{
+   errors++;
+   error_type = ERROR_EXT;
+   strncpy(error_hint, msg, sizeof(error_hint)-1);
    longjmp(error_jmp, err);
 }
 
@@ -307,11 +343,12 @@ u16 digit(const char *p)
    return (u16)(*p + 10 - 'a');
 }
 
-#define IS_EOL(p) (((p) == 0x0a) || ((p) == 0x0d))
-#define IS_END(p) (((!(p)) || (p) == 0x0a) || ((p) == 0x0d))
+#define IS_EOL(p) (((p) == EOF_CHAR) || ((p) == 0x0a) || ((p) == 0x0d))
+#define IS_END(p) (((!(p)) || ((p) == EOF_CHAR) || (p) == 0x0a) || ((p) == 0x0d))
 
 void skip_eol(char **p)
 {
+   if (**p == EOF_CHAR) (*p)++;
    if (**p == 0x0d) (*p)++;
    if (**p == 0x0a) (*p)++;
 }
@@ -331,7 +368,7 @@ void skip_white_and_comment(char **p)
    while ((**p == ' ') || (**p == '\t')) (*p)++;
    if (**p == ';') {
       (*p)++;
-      while((**p != 0) && (**p != 0x0d) && (**p != 0x0a)) (*p)++;
+      while(!IS_END(**p)) (*p)++;
    }
 }
 
@@ -945,11 +982,103 @@ void directive_word(char **p, int pass)
    while (next);
 }
 
+static long file_size(const char *fn)
+{
+   FILE *f = fopen(fn, "rb");
+   long size;
+   if (!f) {
+      error_ext(ERR_OPEN, fn);
+   }
+   fseek(f, 0, SEEK_END);
+   size = ftell(f);
+   fclose(f);
+   return size;
+}
+
+static int read_file(const char *fn, char *buf)
+{
+   FILE *f = fopen(fn, "rb");
+   long size;
+   if (!f) return 0;
+   fseek(f, 0, SEEK_END);
+   size = ftell(f);
+   fseek(f, 0, SEEK_SET);
+   fread(buf, 1, size, f);
+   fclose(f);
+
+   return 1;
+}
+
+static char * str_copy(const char *src)
+{
+   char *dst = malloc(strlen(src)+1);
+   strcpy(dst, src);
+   return dst;
+}
+
+static void add_include_filename(const char *filename)
+{
+   int i;
+
+   /* store filename and line information for error messages */
+   if (filenames_len + 2 > MAX_FILENAMES)
+      error(ERR_MAXINC);
+
+   for (i = filenames_len-1; i>filenames_idx+1; i--) {
+      filenames[i] = filenames[i-2];
+      filelines[i] = filelines[i-2];
+   }
+   filenames[filenames_idx+1] = str_copy(filename);
+   filenames[filenames_idx+2] = str_copy(filenames[filenames_idx]);
+   filelines[filenames_idx+1] = 1;
+   filelines[filenames_idx+2] = line;
+   filenames_len +=2;   
+}
+
 void directive_include(char **p, int pass)
 {
    char filename[STR_LEN];
+   char *dir_start = *p;
+   int start_offset, end_offset;
+   int filesize, remaining_len;
+   int old_len = text_len;
+
+   /* find beginning of include directive */
+   while (*dir_start != '.') dir_start--;
+   start_offset = dir_start - text;
+
+   /* read filename */
    skip_white(p);
    string_lit(p, filename, STR_LEN);
+   skip_white_and_comment(p);
+   if (!IS_END(**p)) error(ERR_EOL);
+
+   /* calculate offset into source after include directive... */
+   end_offset = *p - text - 1;
+   /* ... and the remaining source length */
+   remaining_len = text_len - end_offset;
+
+   filesize = file_size(filename);
+   
+   /* calculate new source length and aquire memory */
+   text_len = text_len + filesize - (*p - dir_start) + 2;
+   if (text_len > old_len) text = realloc(text, text_len);
+
+   /* make space for include file: 
+      move remaining part of source to end of buffer */
+   memmove(text + start_offset + filesize + 1, text + end_offset, remaining_len + 1);
+
+   /* read content of included file to reserverd part of buffer */
+   if (!read_file(filename, text + start_offset + 1)) error_ext(ERR_OPEN, filename);
+
+   /* separate source files with EOF character */
+   text[start_offset] = EOF_CHAR;
+   text[start_offset + filesize + 1] = EOF_CHAR;
+
+   /* set source pointer to beginning of included file */
+   *p = text + start_offset;
+
+   add_include_filename(filename);
 }
 
 void directive(char **p, int pass)
@@ -1052,7 +1181,6 @@ void statement(char **p, int pass)
    else error(ERR_STMT);
 }
 
-static int line;
 void pass(char **p, int pass)
 {
    int err;
@@ -1060,6 +1188,7 @@ void pass(char **p, int pass)
    current_label = NULL;
    pc = 0;
    oc = 0;
+   filenames_idx = 0;
 
    if (!(err = setjmp(error_jmp))) {
       while (**p) {
@@ -1068,18 +1197,26 @@ void pass(char **p, int pass)
 
          if (!IS_END(**p)) error(ERR_EOL);
 
-         skip_eol(p);
-         line++;
+         if (**p == EOF_CHAR) {
+            (*p)++;
+            filenames_idx++;
+            line = filelines[filenames_idx];
+         }
+         else {
+            line++;
+            skip_eol(p);
+         }
       }
    }
    else {
-      printf("error: line %d: %s\n", line, err_msg[err]);
-      skip_eol(p);
-      line++;
+      if (error_type == ERROR_NORM)
+         printf("%s:%d: error: %s\n", filenames[filenames_idx], line, err_msg[err]);
+      else
+         printf("%s:%d: error: %s %s\n", filenames[filenames_idx], line, err_msg[err], error_hint);
    }      
 }
 
-char *load(const char *fn)
+char *read_main(const char *fn)
 {
    char *buf = NULL;
    FILE *f = fopen(fn, "rb");
@@ -1093,6 +1230,15 @@ char *load(const char *fn)
    fread(buf, 1, size, f);
    fclose(f);
    buf[size] = '\0';
+
+   text = buf;
+   text_len = size;
+
+   filenames[0] = str_copy(fn);
+   filelines[0] = 1;
+   filenames_idx = 0;
+   filenames_len = 1;
+
    return buf;
 }
 
@@ -1108,6 +1254,22 @@ int save(const char *fn, const char *data, int len)
    return 1;
 }
 
+void dump_filenames()
+{
+   int i;
+   for (i=0; i<filenames_len; i++) {
+      printf("file %s, line %d\n", filenames[i], filelines[i]);
+   }
+}
+
+void free_filenames()
+{
+   int i;
+   for (i=0; i < filenames_len; i++) {
+      free(filenames[i]);
+   }
+}
+
 int main(int argc, char *argv[])
 {
    char *ttext;
@@ -1118,12 +1280,13 @@ int main(int argc, char *argv[])
       return EXIT_SUCCESS;
    }
 
-   if (!(ttext = text = load(argv[1]))) {
+   if (!read_main(argv[1])) {
       printf("error loading file\n");
       errors = 1;
       goto ret0;
    }
 
+   ttext = text;
    pass(&ttext, 1);
    if (errors) {
       goto ret1;
@@ -1144,7 +1307,13 @@ int main(int argc, char *argv[])
       goto ret2;
    }
 
-   if (debug) dump_symbols();
+   if (debug) {
+      dump_filenames();
+      printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
+      dump_symbols();
+      printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n%s\n", text);
+   }
+
 
 ret2:
    free(code);
@@ -1152,6 +1321,7 @@ ret1:
    free(text);
 ret0:
    free_symbols(&symbols);
+   free_filenames();
 
    if (errors) return EXIT_FAILURE;
    else return EXIT_SUCCESS;
