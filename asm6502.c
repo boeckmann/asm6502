@@ -1,6 +1,8 @@
 /* ASM6502 */
 
-#define ID_LEN  32   /* maximum length of identifiers (variable names etc.) */
+#define ID_LEN 32 /* maximum length of identifiers (variable names etc.) */
+#define STR_LEN 128 /* maximum length of string literals */
+#define MAX_FILENAMES 32 /* maximum include files */
 
 #ifdef __BORLANDC__
 #pragma warn -sig
@@ -15,8 +17,12 @@
 
 static int debug = 0;      /* set DEBUG env variable to enable debug output */      
 
+
+/* EOF characters in text are counted so that for position in text */
+/* the source file can be determined */
 static char *text = NULL;  /* holds the assembler source */
 static char *code = NULL;  /* holds the emitted code */
+
 
 /* program counter and output counter may not be in sync */
 /* this happens if an .org directive is used, which modifies the */
@@ -199,6 +205,8 @@ void dump_symbols(void)
 #define ERR_LOCAL_REDEF 22
 #define ERR_NO_GLOBAL   23
 #define ERR_CHR         24
+#define ERR_STRLEN      25
+#define ERR_STR         26
 
 char *err_msg[] = {
    "",
@@ -225,7 +233,9 @@ char *err_msg[] = {
    "byte value out of range",
    "illegal redefinition of local label",
    "local label definition requires previous global label",
-   "malformed character constant"
+   "malformed character constant",
+   "string too long",
+   "string expected"
 };
 
 jmp_buf error_jmp;
@@ -592,6 +602,18 @@ void emit_byte(u8 b, int pass)
    oc+=1;
 }
 
+void emit(const char *p, int len, int pass)
+{
+   int i=0;
+
+   if (pass == 2) {
+      for (i=0; i<len; i++) {
+         code[oc+i] = p[i];
+      }      
+   }
+   oc+=i;
+}
+
 void emit_word(u16 w, int pass)
 {
    if (pass == 2) {
@@ -844,24 +866,37 @@ void instruction(char **p, int pass)
    pc += am_size[am];
 }
 
+int string_lit(char **p, char *buf, int bufsize)
+{
+   const char *start = buf;
+
+   if (**p != '"') error (ERR_STR);
+   (*p)++;
+   while (**p != '"') {
+      if ((buf-start) >= (bufsize-1)) error(ERR_STRLEN);
+      if (IS_END(**p)) error(ERR_STREND);
+      *(buf++) = **p;
+      (*p)++;
+   }
+   *buf = '\0';
+   (*p)++;
+   return buf - start;
+}
+
 void directive_byte(char **p, int pass)
 {
    value v;
-   int next;
+   int next, len;
+   char buf[STR_LEN];
 
    do {
       next = 0;
       skip_white(p);
 
       if (**p == '"') {
-         (*p)++;
-         while (!IS_END(**p) && (**p != '"')) {
-            emit_byte(**p, pass);
-            (*p)++;
-            pc++;
-         }
-         if (**p != '"') error(ERR_STREND);
-         (*p)++;
+         len = string_lit(p, buf, STR_LEN);
+         pc += len;
+         emit(buf, len, pass);
       }
       else {
          v = expr(p);
@@ -910,6 +945,13 @@ void directive_word(char **p, int pass)
    while (next);
 }
 
+void directive_include(char **p, int pass)
+{
+   char filename[STR_LEN];
+   skip_white(p);
+   string_lit(p, filename, STR_LEN);
+}
+
 void directive(char **p, int pass)
 {
    char id[ID_LEN];
@@ -931,6 +973,9 @@ void directive(char **p, int pass)
    }
    else if (!strcmp(id, "WORD")) {
       directive_word(p, pass);
+   }
+   else if (!strcmp(id, "INCLUDE")) {
+      directive_include(p, pass);
    }
    else {
       error(ERR_NODIRECTIVE);
