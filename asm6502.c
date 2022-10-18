@@ -637,16 +637,16 @@ void emit_byte(u8 b, int pass)
    oc+=1;
 }
 
-void emit(const char *p, int len, int pass)
+void emit(const char *p, u16 len, int pass)
 {
-   int i=0;
+   u16 i=0;
 
    if (pass == 2) {
       for (i=0; i<len; i++) {
          code[oc+i] = p[i];
       }      
    }
-   oc+=i;
+   oc+=len;
 }
 
 void emit_word(u16 w, int pass)
@@ -915,7 +915,7 @@ int string_lit(char **p, char *buf, int bufsize)
    }
    *buf = '\0';
    (*p)++;
-   return buf - start;
+   return (int)(buf - start);
 }
 
 void directive_byte(char **p, int pass)
@@ -930,8 +930,8 @@ void directive_byte(char **p, int pass)
 
       if (**p == '"') {
          len = string_lit(p, buf, STR_LEN);
-         pc += len;
-         emit(buf, len, pass);
+         pc += (u16)len;
+         emit(buf, (u16)len, pass);
       }
       else {
          v = expr(p);
@@ -1043,7 +1043,7 @@ void directive_include(char **p, int pass)
 
    /* find beginning of include directive */
    while (*dir_start != '.') dir_start--;
-   start_offset = dir_start - text;
+   start_offset = (int)(dir_start - text);
 
    /* read filename */
    skip_white(p);
@@ -1052,14 +1052,14 @@ void directive_include(char **p, int pass)
    if (!IS_END(**p)) error(ERR_EOL);
 
    /* calculate offset into source after include directive... */
-   end_offset = *p - text - 1;
+   end_offset = (int)(*p - text - 1);
    /* ... and the remaining source length */
    remaining_len = text_len - end_offset;
 
    filesize = file_size(filename);
    
    /* calculate new source length and aquire memory */
-   text_len = text_len + filesize - (*p - dir_start) + 2;
+   text_len = (int)(text_len + filesize - (*p - dir_start) + 2);
    if (text_len > old_len) text = realloc(text, text_len);
 
    /* make space for include file: 
@@ -1240,7 +1240,7 @@ char *read_main(const char *fn)
    return buf;
 }
 
-int save(const char *fn, const char *data, int len)
+int save_code(const char *fn, const char *data, int len)
 {
    FILE *f = fopen(fn, "wb");
    if (!f) return 0;
@@ -1252,7 +1252,7 @@ int save(const char *fn, const char *data, int len)
    return 1;
 }
 
-void dump_filenames()
+void dump_filenames(void)
 {
    int i;
    for (i=0; i<filenames_len; i++) {
@@ -1260,7 +1260,7 @@ void dump_filenames()
    }
 }
 
-void free_filenames()
+void free_filenames(void)
 {
    int i;
    for (i=0; i < filenames_len; i++) {
@@ -1299,7 +1299,7 @@ int main(int argc, char *argv[])
 
    printf("output size = %d bytes\n", oc);
 
-   if (!save(argv[2], code, oc)) {
+   if (!save_code(argv[2], code, oc)) {
       printf("error saving file\n");
       errors = 1;
       goto ret2;
