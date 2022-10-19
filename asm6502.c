@@ -16,20 +16,28 @@
 
 static int debug = 0;      /* set DEBUG env variable to enable debug output */      
 
-
-/* EOF characters in text are counted so that for position in text */
-/* the source file can be determined */
 static char *text = NULL;  /* holds the assembler source */
 static char *code = NULL;  /* holds the emitted code */
-static int text_len = 0;
-static int line;           /* currently processed line of file */
+static int text_len = 0;   /* total length of the source */
+static int line;           /* currently processed line number */
+
+/* program counter and output counter may not be in sync */
+/* this happens if an .org directive is used, which modifies the */
+/* program counter but not the output counter. */
+
+static u16 pc = 0;    /* program counter of currently assembled instruction */
+static u16 oc = 0;    /* counter of emitted output bytes */
 
 /* The text variable holds all the assembler source.
-   The files contained in text are separated by an EOF character. 
-   The filenames variable stores the filenames of all included files. 
-   If a file A includes file B, filenames contains A, B, A.
-   filelines stores the starting or continuation the line numbers
-   of included files or their parent. */
+   The main assembler file and all files included are joined by an EOF (0x1A)
+   character and stored as a whole in the text variable. Binary zero
+   marks the end of the assembler text.
+   The filenames variable stores the filenames of all included files.
+   Then parsing the source the filenames_idx variable is incremented
+   when en EOF character ist encountered, and the line counter variable is
+   set to filelines[filenames_idx] current filename is
+   filenames[filenames_idx].
+*/
 
 #define MAX_FILENAMES 33 /* maximum include files */
 
@@ -39,13 +47,6 @@ static int filenames_idx = 0;
 static int filenames_len = 0;
 
 #define EOF_CHAR 0x1a
-
-/* program counter and output counter may not be in sync */
-/* this happens if an .org directive is used, which modifies the */
-/* program counter but not the output counter. */
-
-static u16 pc = 0;    /* program counter of currently assembled instruction */
-static u16 oc = 0;    /* counter of emitted output bytes */
 
 /* data type used when evaluating expressions */
 /* the value may be undefined */

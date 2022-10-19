@@ -1,4 +1,5 @@
 # binary files
+asm6502
 *.exe
 *.o
 
