@@ -33,9 +33,9 @@ static u16 oc = 0;    /* counter of emitted output bytes */
    character and stored as a whole in the text variable. Binary zero
    marks the end of the assembler text.
    The filenames variable stores the filenames of all included files.
-   Then parsing the source the filenames_idx variable is incremented
+   When parsing the source the filenames_idx variable is incremented
    when en EOF character ist encountered, and the line counter variable is
-   set to filelines[filenames_idx] current filename is
+   set to filelines[filenames_idx], current filename is set to
    filenames[filenames_idx].
 */
 
@@ -422,11 +422,13 @@ value number(char **p)
    return num;
 }
 
-void ident(char **p, char *id)
+void _ident(char **p, char *id, int numeric)
 {
    int i=0;
 
-   if (!isalpha(**p) || (**p == '_')) error(ERR_ID);
+   if ((!numeric && !isalpha(**p) && (**p != '_'))
+      || (!isalnum(**p) && (**p != '_'))) error(ERR_ID);
+
    do {
       *id++ = *(*p)++;
       i++;
@@ -435,6 +437,16 @@ void ident(char **p, char *id)
    while (isalnum(**p) || (**p == '_'));
 
    *id = '\0';
+}
+
+void ident(char **p, char *id)
+{
+   _ident(p, id, 0);
+}
+
+void nident(char **p, char *id)
+{
+   _ident(p, id, 1);
 }
 
 void ident_upcase(char **p, char *id)
@@ -476,8 +488,8 @@ value primary(char **p)
    else if (**p == '@') {
       (*p)++;
       
-      if (isalpha(**p)) {  /* local label*/
-         ident(p, id);
+      if (isalnum(**p)) {  /* local label*/
+         nident(p, id);
          sym = lookup(id, current_label->locals);
          if (sym) {
             res = sym->value;
@@ -1159,7 +1171,7 @@ void statement(char **p, int pass)
    /* local label definition */
    else if (**p == '@') {
       (*p)++;
-      ident(p, id1);
+      nident(p, id1);
       
       define_local_label(id1, pc);
       
