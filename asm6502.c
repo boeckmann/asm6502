@@ -439,16 +439,19 @@ void _ident(char **p, char *id, int numeric)
    *id = '\0';
 }
 
+/* read identifier which may not start with a digit */
 void ident(char **p, char *id)
 {
    _ident(p, id, 0);
 }
 
+/* read identifier which may start with a digit */
 void nident(char **p, char *id)
 {
    _ident(p, id, 1);
 }
 
+/* read identifier and convert to upper case */
 void ident_upcase(char **p, char *id)
 {
    int i=0;
