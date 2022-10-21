@@ -109,6 +109,11 @@ Sets the current program counter to the numeric value of the argument
 
 	.ORG $0801
 
+### .INCLUDE directive
+Substitutes the directive with the contents of a file given by the argument.
+
+	.INCLUDE "c64krnl.inc"
+	
 ### .BYTE directive
 Produces one or more output bytes. The arguments are separated by comma. Strings enclosed by " may also be used.
 
