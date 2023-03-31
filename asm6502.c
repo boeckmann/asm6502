@@ -559,7 +559,7 @@ value product(char **p)
    skip_white(p);
    op = **p;
 
-   while((op == '*') || (op == '&')) {
+   while((op == '*') || (op == '&') || (op == '/')) {
       (*p)++;
       n2 = primary(p);
 
@@ -603,7 +603,7 @@ value term(char **p)
    skip_white(p);
    op = **p;
 
-   while ((op == '+') || (op == '-') || (op == '|')) {
+   while ((op == '+') || (op == '-') || (op == '|') || (op == '^')) {
       (*p)++;
       n2 = product(p);
 
