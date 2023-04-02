@@ -1,15 +1,16 @@
 # ASM6502
-ASM6502 is a tiny assembler for the MOS Technology 6502 microprocessor used in
-many home-computers of the 8-bit era. It consists of under 2k lines of C code
-and can be built with compilers conformant to the C89 standard.
+ASM6502 is a tiny 2-pass assembler for the MOS Technology 6502 microprocessor
+used in many home computers of the 8-bit era. It consists of under 2k lines
+of C code and can be built with compilers conformant to the C89 standard.
 
-The assembler currently outputs plain binary files and is capable of producing
-listing files. As of now it lacks a few features supported by more
-sophisticated (and larger) assemblers, namely macros and conditional assembly.
-Perhaps these limitations will be lifted in the future.
+The assembler currently outputs plain binary files. It implements a few
+features worth mentioning like local labels, the ability to produce listing
+files and the optimization of opcodes. In its current state it is a useful
+assembler confirmed to produce correct code for all supported instruction and
+addressing mode combinations.
 
-Apart from that it is a usefull assembler confirmed to produce correct code
-for all supported instruction and addressing mode combinations.
+But the small size also comes with some compromises: macros and conditional
+assembly are not supported, but may be implemented in the future.
 
 ## Example
 The following example implements a hello world program for the Commodore C64.
@@ -45,7 +46,7 @@ Assemble with `asm6502 helloc64.asm helloc64.prg`.
 	hello_msg .byte "HELLO, WORLD!", CR, LF
 	hello_len = @ - hello_msg
 
-To produce a listing file during assembly run
+To produce a listing file assemble with
 `asm6502 helloc64.asm helloc64.prg hello64.lst`. The output looks like this:
 
     ASM6502 LISTING FOR helloc64.asm @ 2023-04-02 17:27
