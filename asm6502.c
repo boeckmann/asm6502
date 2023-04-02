@@ -1308,8 +1308,10 @@ void pass(char **p, int pass)
             (*p)++;
             filenames_idx++;
             line = filelines[filenames_idx];
-            line++;
-            skip_eol(p);
+            if (IS_END(**p)) {
+               line++;
+               skip_eol(p);               
+            }
 
             if (listing)
                fprintf(list_file,
