@@ -1289,12 +1289,6 @@ void pass(char **p, int pass)
    filenames_idx = 0;
 
    if (!(err = setjmp(error_jmp))) {
-      if (listing)
-         fprintf(list_file,
-                  "                          "
-                  "<<< FILE %s >>>\n", filenames[filenames_idx]);
-
-
       while (**p) {
          statement(p, pass);
          skip_white_and_comment(p);
@@ -1412,7 +1406,7 @@ int init_listing(char *fn)
    strftime(ts, sizeof(ts), "%Y-%m-%d %H:%M", tm);
 
    fprintf(list_file, "ASM6502 LISTING FOR %s @ %s\n\n", filenames[0], ts);
-   fprintf(list_file, "POS   PC    Code          Line# Assembler text\n");
+   fprintf(list_file, "FPos  PC    Code          Line# Assembler text\n");
 
    return 1;
 }

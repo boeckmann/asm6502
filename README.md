@@ -8,7 +8,7 @@ instructions.
 
 ## Example
 The following example implements a hello world program for the Commodore C64.
-Assemble with `asm6502 helloc64.asm helloc64.prg`.
+Assemble with `asm6502 helloc64.asm helloc64.prg`. 
 
 	; C64 Hello World
 	; assemble to .PRG file: asm6502 helloc64.asm helloc64.prg
@@ -40,10 +40,40 @@ Assemble with `asm6502 helloc64.asm helloc64.prg`.
 	hello_msg .byte "HELLO, WORLD!", CR, LF
 	hello_len = @ - hello_msg
 
+To produce a listing file during assembly run
+`asm6502 helloc64.asm helloc64.prg hello64.lst`. The output looks like this:
 
+    ASM6502 LISTING FOR helloc64.asm @ 2023-04-02 17:27
+    
+    FPos  PC    Code          Line# Assembler text
+                                 1: ; C64 Hello World
+                                 2: ; assemble to .PRG file: asm6502 helloc64.asm helloc64.prg
+                                 3: 
+                                 4: LOAD_ADDR = $0801
+                                 5: 
+    0000  0000  01 08            6:         .word LOAD_ADDR         ; .PRG header: load address
+                                 7:         .org  LOAD_ADDR
+                                 8: 
+                                 9: CHROUT = $FFD2                  ; kernal function address
+                                10: SYS    = $9E                    ; basic SYS token number
+                                11: CR     = 13                     ; carrige return character
+                                12: LF     = %1010                  ; line feed character
+                                13: 
+                                14: basic_upstart:                  ; BASIC code: 10 SYS 2062
+    0002  0801  0C 08 0A        15:         .word @end, 10          ; ptr to next basic line and line number    10
+    0006  0805  9E 20 32 ...    16:         .byte SYS, " 2062",0    ; SYS token and address string of   subroutine
+    000D  080C  00 00           17: @end    .word 0                 ; null ptr to indicate end of basic text
+                                18: 
+                                19: start:                          ; this is at address 2062 ($080E)
+    000F  080E  A2 00           20:         ldx #0
+    0011  0810  BD 1C 08        21: @l      lda hello_msg,x
+    ...
 
-## Documentation
-*The documentation is currently only a stub*
+The column *FPos* indicates the position in the output file while *PC*
+indicates the address of the program counter. FPos and PC may not be in sync
+if an *.ORG* directive is used in the assembler text. It may be used if the
+binary image is not loaded to address zero, for example if it is loaded as
+a .PRG file on commodore systems.
 
 ## Data types
 Two data types are known to the assembler: 8-bit unsigned byte and 16-bit
@@ -116,8 +146,8 @@ Each line may end with a comment. Comments start with a semicolon.
 At the beginning of a line a label may be specified if the line does not
 contain a variable definition.
 
-	start:      ; line consisting of a label
-	loop: BNE loop  ; label and instruction
+	start:              ; line consisting of a label
+	loop: BNE loop      ; label and instruction
 	msg:  .byte "Hello" ; label followed by a directive
 
 Variables are defined by giving the variable name followed by equal sign
