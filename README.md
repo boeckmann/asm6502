@@ -10,7 +10,7 @@ assembler confirmed to produce correct code for all supported instruction and
 addressing mode combinations.
 
 But the small size also comes with some compromises: macros and conditional
-assembly are not supported, but may be implemented in the future.
+assembly are not supported. This may be implemented in the future.
 
 ## Example
 The following example implements a hello world program for the Commodore C64.
@@ -104,6 +104,18 @@ non-local label to the next non-local label.
 Variables may be of type byte or word, depending on the data type of the
 expression.
 
+If a symbol name is encountered in an expression before it is defined it
+gets implicitly declared as a label with type word and unknown value. That
+label must be given a value later in the source code.
+
+A symbol declared as label may not be redefined as variable and vice versa.
+So the following results is an error, because *CR* and *LF* are defined as
+label:
+
+	hello_msg .byte "HELLO, WORLD!", CR, LF
+	CR = $0C	; error: illegal redefinition
+	LF = $0A	; error: illegal redefinition
+
 ## Expressions
 There are many places where expressions may occur, for example on the right
 side of a variable definition or as an argument to a machine instruction. The
@@ -112,8 +124,8 @@ in decimal, hexadecimal or binary. The value of the constant determines its
 type. A small value can be forced to be of type word by prepending zeros.
 
 	5     ; decimal byte constant
-	$a    ; decimal byte constant
-	$4711 ; hex word constant
+	$a    ; hexadecimal byte constant
+	$4711 ; hexadecimal word constant
 	%1011 ; binary byte constant
 	$00a  ; hex word constant because more than 2 digits
 	0123  ; decimal word constant because more than 3 digits
@@ -143,11 +155,11 @@ In the last example the unary + is only needed if used as an instruction
 argument to destinguish from 6502 indirect addressing mode.
 
 ### Current Program Counter
-The special symbol `@` evaluates to the current program counter. It may not be
-confused with a local label, like `@abc`.
+The special symbol `@` evaluates to the current value of the program counter.
+It may not be confused with a local label, like `@abc`.
 
 ## Line syntax
-Each line may end with a comment. Comments start with a semicolon.
+Each line may end with a comment started by a semicolon.
 
 At the beginning of a line a label may be specified if the line does not
 contain a variable definition.
@@ -157,12 +169,12 @@ contain a variable definition.
 	msg:  .byte "Hello" ; label followed by a directive
 
 Variables are defined by giving the variable name followed by equal sign
-followed by an expression yielding a numeric value:
+followed by an expression yielding a numeric value of type byte or word:
 
 	CHROUT = $FFD2
 
 ## Directives
-Directive instruct the assembler to do certain things. They may or may not
+Directives instruct the assembler to do certain things. They may or may not
 produce output data. Names of directives start with a dot. The directives
 currently known to the assembler are:
 
@@ -174,7 +186,7 @@ used to "jump around" in the output file.
 	.ORG $0801
 
 ### .FILL directive
-Starting from the current offset of the output file, emits as many bytes as
+Starting from the current position of the output file, emits as many bytes as
 given by the first argument. If the second argument is given, the region is
 filled with its byte-sized value. Otherwise it is filled with zero. The 
 program counter is increased accordingly.
