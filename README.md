@@ -1,10 +1,15 @@
 # ASM6502
-Early version of my 6502 assembler implementation. Hopefully ANSI C
-conformant. Confirmed to compile with clang, gcc, Pelles C and Borland C++
-3.1. While in an early stage, it supports all official MOS6502 instructions
-and addressing modes and generates correct opcodes for all supported
-instructions.
+ASM6502 is a tiny assembler for the MOS Technology 6502 microprocessor used in
+many home-computers of the 8-bit era. It consists of under 2k lines of C code
+and can be built with compilers conformant to the C89 standard.
 
+The assembler currently outputs plain binary files and is capable of producing
+listing files. As of now it lacks a few features supported by more
+sophisticated (and larger) assemblers, namely macros and conditional assembly.
+Perhaps these limitations will be lifted in the future.
+
+Apart from that it is a usefull assembler confirmed to produce correct code
+for all supported instruction and addressing mode combinations.
 
 ## Example
 The following example implements a hello world program for the Commodore C64.
@@ -60,8 +65,8 @@ To produce a listing file during assembly run
                                 12: LF     = %1010                  ; line feed character
                                 13: 
                                 14: basic_upstart:                  ; BASIC code: 10 SYS 2062
-    0002  0801  0C 08 0A        15:         .word @end, 10          ; ptr to next basic line and line number    10
-    0006  0805  9E 20 32 ...    16:         .byte SYS, " 2062",0    ; SYS token and address string of   subroutine
+    0002  0801  0C 08 0A        15:         .word @end, 10          ; ptr to next basic line and line number 10
+    0006  0805  9E 20 32 ...    16:         .byte SYS, " 2062",0    ; SYS token and address string of subroutine
     000D  080C  00 00           17: @end    .word 0                 ; null ptr to indicate end of basic text
                                 18: 
                                 19: start:                          ; this is at address 2062 ($080E)
