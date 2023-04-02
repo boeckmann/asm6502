@@ -533,7 +533,7 @@ value primary(char **p)
       if (IS_END(**p) || (**p < 0x20)) error(ERR_CHR);
 
       res.v = **p;
-      res.t = TYPE_WORD | VALUE_DEFINED;
+      res.t = TYPE_BYTE | VALUE_DEFINED;
 
       (*p)++;
       if (**p != '\'') error(ERR_CHR);
@@ -1116,6 +1116,33 @@ void directive_include(char **p, int pass)
    add_include_filename(filename);
 }
 
+void directive_fill(char **p, int pass)
+{
+   value count, filler;
+
+   count = expr(p);
+   if (UNDEFINED(count)) error (ERR_UNDEF);
+   
+   pc += count.v;
+
+   skip_white(p);
+   if (**p == ',') {
+      /* check for filler value, otherwise fill with zero */
+      skip_curr_and_white(p);
+      filler = expr(p);
+      if (UNDEFINED(filler)) error (ERR_UNDEF);
+      if (TYPE(filler) != TYPE_BYTE) error(ERR_ILLTYPE);
+   }
+   else {
+      filler.v = 0;
+   }
+
+   if (pass == 2) {
+      memset(code + oc, filler.v, count.v);
+      oc += count.v;
+   }
+}
+
 void directive(char **p, int pass)
 {
    char id[ID_LEN];
@@ -1128,9 +1155,8 @@ void directive(char **p, int pass)
       if (UNDEFINED(v)) error (ERR_UNDEF);
       pc = v.v;
    }
-   else if (!strcmp(id, "PUT")) {
-      v = expr(p);
-      if (UNDEFINED(v)) error (ERR_UNDEF);
+   else if (!strcmp(id, "FILL")) {
+      directive_fill(p, pass);
    }
    else if (!strcmp(id, "BYTE")) {
       directive_byte(p, pass);

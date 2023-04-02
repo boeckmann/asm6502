@@ -131,9 +131,20 @@ produce output data. Names of directives start with a dot. The directives
 currently known to the assembler are:
 
 ### .ORG directive
-Sets the current program counter to the numeric value of the argument
+Sets the current program counter to the numeric value of the argument. Does
+not modify the offset into the output file. This means that .ORG can not be
+used to "jump around" in the output file.
 
 	.ORG $0801
+
+### .FILL directive
+Starting from the current offset of the output file, emits as many bytes as
+given by the first argument. If the second argument is given, the region is
+filled with its byte-sized value. Otherwise it is filled with zero. The 
+program counter is increased accordingly.
+
+	.FILL 100       ; fill 100 bytes with zero
+	.FILL 16, $EA	; insert 16 NOPs ($EA) into the code
 
 ### .INCLUDE directive
 Substitutes the directive with the contents of a file given by the argument.
