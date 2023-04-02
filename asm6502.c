@@ -1422,9 +1422,13 @@ int main(int argc, char *argv[])
    char *ttext;
 
    debug = (getenv("DEBUG") != NULL);
-   if ((argc < 3) || !strcmp(argv[1], argv[2])) {
+   if (argc < 3) {
       printf("Usage: asm6502 input output [listing]\n");
       return EXIT_SUCCESS;
+   }
+   if (!strcmp(argv[1], argv[2])) {
+      printf("refuse to overwrite your source ;-)\n");
+      return EXIT_FAILURE;
    }
 
    if (!read_main(argv[1])) {
@@ -1441,10 +1445,15 @@ int main(int argc, char *argv[])
 
    /*initialize listing */
    if (argc == 4) {
+      if (!strcmp(argv[1], argv[3]) || !strcmp(argv[2], argv[3])) {
+         printf("refuse to overwrite your files ;-)\n");
+         errors = 1;
+         goto ret1;
+      }
       if (!init_listing(argv[3])) {
          printf("error opening listing file\n");
          errors = 1;
-         goto ret0;
+         goto ret1;
       }
       printf("writing listing to %s\n", argv[3]);
    }
