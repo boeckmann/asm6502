@@ -256,6 +256,7 @@ void dump_symbols(void)
 #define ERR_STR         26
 #define ERR_OPEN        27
 #define ERR_MAXINC      28
+#define ERR_NO_BYTE     29
 
 char *err_msg[] = {
    "",
@@ -286,7 +287,8 @@ char *err_msg[] = {
    "string too long",
    "string expected",
    "can not open file",
-   "maximum number of include files reached"
+   "maximum number of include files reached",
+   "byte sized value expected"
 };
 
 #define ERROR_NORM 1
@@ -985,7 +987,7 @@ void directive_byte(char **p, int pass)
 
          if (pass == 2) {
             if (UNDEFINED(v)) error (ERR_UNDEF);
-            if (TYPE(v) != TYPE_BYTE) error(ERR_ILLTYPE);
+            if (NUM_TYPE(v.v) != TYPE_BYTE) error(ERR_NO_BYTE);
          }
          emit_byte((u8)to_byte(v).v, pass);
 
@@ -1141,7 +1143,7 @@ void directive_fill(char **p, int pass)
       skip_curr_and_white(p);
       filler = expr(p);
       if (UNDEFINED(filler)) error (ERR_UNDEF);
-      if (TYPE(filler) != TYPE_BYTE) error(ERR_ILLTYPE);
+      if (NUM_TYPE(filler.v) != TYPE_BYTE) error(ERR_NO_BYTE);
    }
    else {
       filler.v = 0;
