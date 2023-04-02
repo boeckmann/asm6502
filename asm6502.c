@@ -21,7 +21,7 @@
  * SOFTWARE.
  */
 
-#define ID_LEN 32 /* maximum length of identifiers (variable names etc.) */
+#define ID_LEN  32  /* maximum length of identifiers (variable names etc.) */
 #define STR_LEN 128 /* maximum length of string literals */
 
 #ifdef __BORLANDC__
@@ -33,6 +33,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <setjmp.h>
+#include <time.h>
 #include "asm6502.h"
 
 static int debug = 0;      /* set DEBUG env variable to enable debug output */      
@@ -68,6 +69,12 @@ static int filenames_idx = 0;
 static int filenames_len = 0;
 
 #define EOF_CHAR 0x1a
+
+/* program listing data */
+static int listing = 0;       /* do program listing? */
+static char *list_pos;
+static u16 list_oc, list_pc;
+static FILE *list_file;
 
 /* data type used when evaluating expressions */
 /* the value may be undefined */
@@ -107,13 +114,16 @@ static symbol *current_label = NULL;   /* search scope for local labels */
 #define UNDEFINED(x) (((x).t & VALUE_DEFINED) == 0)
 #define SET_DEFINED(v) ((v).t = ((v).t | VALUE_DEFINED))
 #define SET_UNDEFINED(v) ((v).t = (v).t & 0x3f);
-#define INFERE_DEFINED(a,b) if (UNDEFINED(a) || UNDEFINED(b)) { SET_UNDEFINED(a); } else { SET_DEFINED(a); }
+#define INFERE_DEFINED(a,b) \
+          if (UNDEFINED(a) || UNDEFINED(b)) { SET_UNDEFINED(a); } \
+          else { SET_DEFINED(a); }
 
 /* type specific preprocessor directives */
 #define TYPE(v) ((v).t & 0x3f)
 #define SET_TYPE(v, u) ((v).t = ((v).t & VALUE_DEFINED) | (u))
 #define NUM_TYPE(x) (((x) < 0x100) ? TYPE_BYTE : TYPE_WORD)
-#define INFERE_TYPE(a,b) (((a).v >= 0x100) || ((b).v >= 0x100)) ? TYPE_WORD : MAXINT(TYPE(a),(TYPE(b)))
+#define INFERE_TYPE(a,b) (((a).v >= 0x100) || ((b).v >= 0x100)) ? \
+          SET_TYPE((a), TYPE_WORD) : SET_TYPE((a), MAXINT(TYPE(a),(TYPE(b))))
 
 
 symbol *lookup(const char *name, symbol *start)
@@ -572,7 +582,7 @@ value product(char **p)
             res.v = (u16)(res.v & n2.v); break;
       }
 
-      SET_TYPE(res, INFERE_TYPE(res, n2));
+      INFERE_TYPE(res, n2);
       INFERE_DEFINED(res, n2);
       skip_white(p);
       op = **p;
@@ -617,7 +627,7 @@ value term(char **p)
          case '^':
             res.v = res.v ^ n2.v; break;
       }
-      SET_TYPE(res, INFERE_TYPE(res, n2));
+      INFERE_TYPE(res, n2);
       INFERE_DEFINED(res, n2);
       skip_white(p);
       op = **p;
@@ -1242,6 +1252,33 @@ void statement(char **p, int pass)
    else error(ERR_STMT);
 }
 
+void list_statement(char *p)
+{
+   int count = 0;
+   if (list_oc < oc)
+      /* output program counter, but only if we emitted code */
+      fprintf(list_file, "%04X  %04X  ", list_oc, list_pc);
+   else
+      fputs("            ", list_file);
+
+   while (list_oc < oc && count < 3) {
+      fprintf(list_file, "%02hhX ", code[list_oc++]);
+      count++;
+   }
+
+   if (list_oc + count < oc)
+      fputs("...", list_file);
+   else {
+      while (count < 4) {
+         fputs("   ", list_file);
+         count++;
+      }
+   }
+   fprintf(list_file, "%6d: ", line);
+   fwrite(list_pos, 1, (int)(p - list_pos), list_file);
+   fputs("\n", list_file);
+}
+
 void pass(char **p, int pass)
 {
    int err;
@@ -1252,20 +1289,42 @@ void pass(char **p, int pass)
    filenames_idx = 0;
 
    if (!(err = setjmp(error_jmp))) {
+      if (listing)
+         fprintf(list_file,
+                  "                          "
+                  "<<< FILE %s >>>\n", filenames[filenames_idx]);
+
+
       while (**p) {
          statement(p, pass);
          skip_white_and_comment(p);
 
          if (!IS_END(**p)) error(ERR_EOL);
 
+         if (listing)
+            list_statement(*p);
+
          if (**p == EOF_CHAR) {
             (*p)++;
             filenames_idx++;
             line = filelines[filenames_idx];
+            line++;
+            skip_eol(p);
+
+            if (listing)
+               fprintf(list_file,
+                  "                          "
+                  "<<< FILE %s >>>\n", filenames[filenames_idx]);
          }
          else {
             line++;
             skip_eol(p);
+         }
+
+         if (listing) {
+            list_oc = oc;
+            list_pc = pc;
+            list_pos = *p;
          }
       }
    }
@@ -1331,13 +1390,38 @@ void free_filenames(void)
    }
 }
 
+int init_listing(char *fn)
+{
+   time_t t;
+   struct tm *tm;
+   char ts[80];
+
+   list_file = fopen(fn, "wb");
+
+   if (!list_file) return 0;
+
+   listing = 1;   
+   list_pos = text;
+   list_oc = 0;
+   list_pc = 0;
+
+   time(&t);
+   tm = localtime(&t);
+   strftime(ts, sizeof(ts), "%Y-%m-%d %H:%M", tm);
+
+   fprintf(list_file, "ASM6502 LISTING FOR %s @ %s\n\n", filenames[0], ts);
+   fprintf(list_file, "POS   PC    Code          Line# Assembler text\n");
+
+   return 1;
+}
+
 int main(int argc, char *argv[])
 {
    char *ttext;
 
    debug = (getenv("DEBUG") != NULL);
-   if ((argc != 3) || !strcmp(argv[1], argv[2])) {
-      printf("Usage: asm6502 input output\n");
+   if ((argc < 3) || !strcmp(argv[1], argv[2])) {
+      printf("Usage: asm6502 input output [listing]\n");
       return EXIT_SUCCESS;
    }
 
@@ -1346,11 +1430,21 @@ int main(int argc, char *argv[])
       errors = 1;
       goto ret0;
    }
-
+   
    ttext = text;
    pass(&ttext, 1);
    if (errors) {
       goto ret1;
+   }
+
+   /*initialize listing */
+   if (argc == 4) {
+      if (!init_listing(argv[3])) {
+         printf("error opening listing file\n");
+         errors = 1;
+         goto ret0;
+      }
+      printf("writing listing to %s\n", argv[3]);
    }
 
    ttext = text;
@@ -1377,6 +1471,7 @@ int main(int argc, char *argv[])
 
 
 ret2:
+   if (list_file) fclose(list_file);
    free(code);
 ret1:
    free(text);
