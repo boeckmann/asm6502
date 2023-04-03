@@ -375,7 +375,7 @@ u16 digit(const char *p)
    return (u16)(*p + 10 - 'a');
 }
 
-#define IS_EOL(p) (((p) == EOF_CHAR) || ((p) == 0x0a) || ((p) == 0x0d))
+#define IS_EOL(p) (((p) == 0x0a) || ((p) == 0x0d))
 #define IS_END(p) (((!(p)) || ((p) == EOF_CHAR) || (p) == 0x0a) || ((p) == 0x0d))
 
 void skip_eol(char **p)
@@ -952,12 +952,12 @@ void instruction(char **p, int pass)
 
 int string_lit(char **p, char *buf, int bufsize)
 {
-   const char *start = buf;
+   char *start = buf;
 
    if (**p != '"') error (ERR_STR);
    (*p)++;
    while (**p != '"') {
-      if ((buf-start) >= (bufsize-1)) error(ERR_STRLEN);
+      if (buf - start >= bufsize - 1) error(ERR_STRLEN);
       if (IS_END(**p)) error(ERR_STREND);
       *(buf++) = **p;
       (*p)++;
@@ -1090,6 +1090,8 @@ void directive_include(char **p, int pass)
    int filesize, remaining_len;
    int old_len = text_len;
 
+   (void)pass;
+
    /* find beginning of include directive */
    while (*dir_start != '.') dir_start--;
    start_offset = (int)(dir_start - text);
@@ -1101,7 +1103,7 @@ void directive_include(char **p, int pass)
    if (!IS_END(**p)) error(ERR_EOL);
 
    /* calculate offset into source after include directive... */
-   end_offset = (int)(*p - text - 1);
+   end_offset = (int)(*p - text);
    /* ... and the remaining source length */
    remaining_len = text_len - end_offset;
 
@@ -1109,11 +1111,11 @@ void directive_include(char **p, int pass)
    
    /* calculate new source length and aquire memory */
    text_len = (int)(text_len + filesize - (*p - dir_start) + 2);
-   if (text_len > old_len) text = realloc(text, text_len);
+   if (text_len > old_len) text = realloc(text, text_len + 1);
 
    /* make space for include file: 
       move remaining part of source to end of buffer */
-   memmove(text + start_offset + filesize + 1, text + end_offset, remaining_len + 1);
+   memmove(text + start_offset + filesize + 2, text + end_offset, remaining_len + 1);
 
    /* read content of included file to reserverd part of buffer */
    if (!read_file(filename, text + start_offset + 1)) error_ext(ERR_OPEN, filename);
@@ -1264,7 +1266,7 @@ void list_statement(char *p)
       fputs("            ", list_file);
 
    while (list_oc < oc && count < 3) {
-      fprintf(list_file, "%02hhX ", code[list_oc++]);
+      fprintf(list_file, "%02X ", (int)code[list_oc++] & 0xff);
       count++;
    }
 
@@ -1304,7 +1306,7 @@ void pass(char **p, int pass)
             (*p)++;
             filenames_idx++;
             line = filelines[filenames_idx];
-            if (IS_END(**p)) {
+            if (IS_EOL(**p)) {
                line++;
                skip_eol(p);               
             }
@@ -1432,7 +1434,7 @@ int main(int argc, char *argv[])
       errors = 1;
       goto ret0;
    }
-   
+
    ttext = text;
    pass(&ttext, 1);
    if (errors) {
@@ -1476,11 +1478,18 @@ int main(int argc, char *argv[])
       printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n%s\n", text);
    }
 
-
 ret2:
    if (list_file) fclose(list_file);
    free(code);
 ret1:
+   /*ttext = text;
+   while (*ttext) {
+      if (*ttext > 0x1f)
+         putchar(*ttext);
+      printf("%02X ", *ttext);
+      ttext++;
+   }
+   printf("\n");*/
    free(text);
 ret0:
    free_symbols(&symbols);

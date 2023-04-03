@@ -109,8 +109,8 @@ gets implicitly declared as a label with type word and unknown value. That
 label must be given a value later in the source code.
 
 A symbol declared as label may not be redefined as variable and vice versa.
-So the following results is an error, because *CR* and *LF* are defined as
-label:
+So the following is an error, because *CR* and *LF* are declared as labels in
+the first line while in line two and three they are treated as variables. 
 
 	hello_msg .byte "HELLO, WORLD!", CR, LF
 	CR = $0C	; error: illegal redefinition
