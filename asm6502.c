@@ -101,6 +101,7 @@ typedef struct symbol {
 
 
 static symbol *symbols = NULL;         /* global symbol table */
+static int symbol_count = 0;       /* number of global symbols */
 static symbol *current_label = NULL;   /* search scope for local labels */
 
 /* symbol specific preprocessor directives */
@@ -169,6 +170,7 @@ symbol *aquire(const char *name)
       sym = new_symbol(name);
       sym->next = symbols;
       symbols = sym;
+      symbol_count++;
    }
    return sym;
 }
@@ -186,7 +188,7 @@ symbol *aquire_local(const char *name)
    return sym;
 }
 
-char sym_f2c(u8 kind)
+char sym_kind_to_char(u8 kind)
 {
    switch (kind) {
       case KIND_LBL:
@@ -197,7 +199,7 @@ char sym_f2c(u8 kind)
    return '-';
 }
 
-char sym_t2c(u8 typ)
+char sym_type_to_char(u8 typ)
 {
    if ((typ & 0x3f) == 0) return 'U';
    switch (typ & 0x3f) {
@@ -216,9 +218,11 @@ void dump_symbols(void)
 
    for (; sym; sym = sym->next) {
       if (DEFINED(sym->value))
-         printf("%c %c %04x %s\n", sym_f2c(sym->kind), sym_t2c(sym->value.t), sym->value.v, sym->name);
+         printf("%c %c %04x %s\n", sym_kind_to_char(sym->kind), 
+            sym_type_to_char(sym->value.t), sym->value.v, sym->name);
       else
-         printf("%c %c    ? %s\n", sym_f2c(sym->kind), sym_t2c(sym->value.t), sym->name);
+         printf("%c %c    ? %s\n", sym_kind_to_char(sym->kind),
+            sym_type_to_char(sym->value.t), sym->name);
       if (IS_LBL(*sym)) {
          
          for (locals = sym->locals; locals; locals = locals->next) {
@@ -1283,6 +1287,67 @@ void list_statement(char *p)
    fputs("\n", list_file);
 }
 
+int sym_cmp_name(const void *a, const void *b)
+{
+   const symbol *sa, *sb;
+   sa = *(const symbol **)a;
+   sb = *(const symbol **)b;
+
+   return strcmp(sa->name, sb->name);
+}
+
+int sym_cmp_val(const void *a, const void *b)
+{
+   const symbol *sa, *sb;
+   sa = *(const symbol **)a;
+   sb = *(const symbol **)b;
+
+   return sa->value.v - sb->value.v;
+}
+
+void list_symbols(void)
+{
+   symbol *sym;
+   symbol **sym_array, **sym_p;
+   int count = 0, i;
+
+   sym_array = sym_p = malloc(sizeof(symbol *) * (symbol_count + 1));
+   if (!sym_array) return;
+   
+   for (sym = symbols; sym; sym = sym->next) {
+      /* convert linked list to array */
+      *sym_p++ = sym;
+      count++;
+   }
+   *sym_p = NULL;
+
+   for (i = 1; i < 3; i++) {
+      sym_p = sym_array;
+   
+      if (i == 1) {
+         fprintf(list_file, "\n\n<<< SYMBOLS BY NAME >>>\n\n");
+         qsort(sym_array, count, sizeof(symbol *), sym_cmp_name);
+      }
+      else {
+         fprintf(list_file, "\n\n<<< SYMBOLS BY VALUE >>>\n\n");
+         qsort(sym_array, count, sizeof(symbol *), sym_cmp_val);
+      }
+   
+      fprintf(list_file, "   HEX    DEC   NAME\n");
+      for (; *sym_p; sym_p++) {
+         sym = *sym_p;
+         if (TYPE(sym->value) == TYPE_BYTE)
+            fprintf(list_file, "%c    %02X  %5u   %-32s\n",
+               sym_kind_to_char(sym->kind), sym->value.v, sym->value.v, sym->name);
+         else
+            fprintf(list_file, "%c  %04X  %5u   %-32s\n",
+               sym_kind_to_char(sym->kind), sym->value.v, sym->value.v, sym->name);
+      }
+   }
+
+   free(sym_array);
+}
+
 void pass(char **p, int pass)
 {
    int err;
@@ -1330,9 +1395,11 @@ void pass(char **p, int pass)
    }
    else {
       if (error_type == ERROR_NORM)
-         printf("%s:%d: error: %s\n", filenames[filenames_idx], line, err_msg[err]);
+         printf("%s:%d: error: %s\n", filenames[filenames_idx], 
+            line, err_msg[err]);
       else
-         printf("%s:%d: error: %s %s\n", filenames[filenames_idx], line, err_msg[err], error_hint);
+         printf("%s:%d: error: %s %s\n", filenames[filenames_idx], line,
+            err_msg[err], error_hint);
    }      
 }
 
@@ -1462,6 +1529,9 @@ int main(int argc, char *argv[])
    if (errors) {
       goto ret2;
    }
+
+   if (listing)
+      list_symbols();
 
    printf("output size = %d bytes\n", oc);
 
