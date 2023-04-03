@@ -320,10 +320,15 @@ void error_ext(int err, const char *msg)
 symbol * define_label(const char *id, u16 v)
 {
    symbol *sym = aquire(id);
-   if (IS_VAR(*sym) || (DEFINED(sym->value) && (sym->value.v != v))) error(ERR_REDEF);
+
+   if (IS_VAR(*sym) || (DEFINED(sym->value) && (sym->value.v != v)))
+      error(ERR_REDEF);
+
    sym->value.v = v;
-   sym->value.t = TYPE_WORD | VALUE_DEFINED;
+   sym->value.t = ((TYPE(sym->value) == TYPE_WORD) ? TYPE_WORD : NUM_TYPE(v))
+                | VALUE_DEFINED;
    sym->kind = KIND_LBL;
+
    return sym;
 }
 
