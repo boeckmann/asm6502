@@ -836,7 +836,8 @@ int instruction_ind(char **p, int pass, idesc *instr)
 
    if (pass == 2) {
       if (UNDEFINED(v)) error(ERR_UNDEF);
-      if (((am == AM_INX) || am == (AM_INY)) && (TYPE(v) != TYPE_BYTE)) error(ERR_ILLTYPE);
+      if (((am == AM_INX) || am == (AM_INY)) && (TYPE(v) != TYPE_BYTE))
+         error(ERR_ILLTYPE);
    }
 
    if (am == AM_IND) {
@@ -1343,10 +1344,12 @@ void list_symbols(void)
          sym = *sym_p;
          if (TYPE(sym->value) == TYPE_BYTE)
             fprintf(list_file, "%c    %02X  %5u   %-32s\n",
-               sym_kind_to_char(sym->kind), sym->value.v, sym->value.v, sym->name);
+               sym_kind_to_char(sym->kind), sym->value.v, sym->value.v,
+               sym->name);
          else
             fprintf(list_file, "%c  %04X  %5u   %-32s\n",
-               sym_kind_to_char(sym->kind), sym->value.v, sym->value.v, sym->name);
+               sym_kind_to_char(sym->kind), sym->value.v, sym->value.v,
+               sym->name);
       }
    }
 
@@ -1557,14 +1560,6 @@ ret2:
    if (list_file) fclose(list_file);
    free(code);
 ret1:
-   /*ttext = text;
-   while (*ttext) {
-      if (*ttext > 0x1f)
-         putchar(*ttext);
-      printf("%02X ", *ttext);
-      ttext++;
-   }
-   printf("\n");*/
    free(text);
 ret0:
    free_symbols(&symbols);
