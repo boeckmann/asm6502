@@ -962,35 +962,36 @@ void instruction(char **p, int pass)
 
 int string_lit(char **p, char *buf, int bufsize)
 {
-   char *start = buf;
+   char *start = *p;
 
    if (**p != '"') error (ERR_STR);
    (*p)++;
    while (**p != '"') {
-      if (buf - start >= bufsize - 1) error(ERR_STRLEN);
+      if (bufsize && buf - start >= bufsize - 1) error(ERR_STRLEN);
       if (IS_END(**p)) error(ERR_STREND);
-      *(buf++) = **p;
+      if (buf) *(buf++) = **p;
       (*p)++;
    }
-   *buf = '\0';
+   if (buf) *buf = '\0';
    (*p)++;
-   return (int)(buf - start);
+   return (int)(*p - start - 2);
 }
 
 void directive_byte(char **p, int pass)
 {
    value v;
    int next, len;
-   char buf[STR_LEN];
+   char *tp;
 
    do {
       next = 0;
       skip_white(p);
 
       if (**p == '"') {
-         len = string_lit(p, buf, STR_LEN);
+         tp = *p + 1;
+         len = string_lit(p, NULL, 0);
          pc += (u16)len;
-         emit(buf, (u16)len, pass);
+         emit(tp, (u16)len, pass);
       }
       else {
          v = expr(p);
