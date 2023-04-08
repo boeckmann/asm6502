@@ -980,7 +980,7 @@ int string_lit(char **p, char *buf, int bufsize)
    if (**p != '"') error (ERR_STR);
    (*p)++;
    while (**p != '"') {
-      if (bufsize && buf - start >= bufsize - 1) error(ERR_STRLEN);
+      if (bufsize && *p - start >= bufsize - 1) error(ERR_STRLEN);
       if (IS_END(**p)) error(ERR_STREND);
       if (buf) *(buf++) = **p;
       (*p)++;
