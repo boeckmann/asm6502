@@ -81,6 +81,16 @@ if an *.ORG* directive is used in the assembler text. It may be used if the
 binary image is not loaded to address zero, for example if it is loaded as
 a .PRG file on commodore systems.
 
+## Constraints
+```
+Maximum identifier length: 32
+Maximum line length      : no restriction
+
+Maximum number of files :  64
+Maximum file name length: 255
+Maximum include depth   :  32
+```
+
 ## Data types
 Two data types are known to the assembler: 8-bit unsigned byte and 16-bit
 unsigned word. In most cases, the type of an expression is automatically

@@ -22,7 +22,11 @@
  */
 
 #define ID_LEN  32  /* maximum length of identifiers (variable names etc.) */
-#define STR_LEN 128 /* maximum length of string literals */
+#define STR_LEN 255 /* maximum length of string literals */
+
+#define MAX_FILES     64   /* maximum include files */
+#define MAX_POS_STACK 32   
+
 
 #ifdef __BORLANDC__
 #pragma warn -sig
@@ -38,9 +42,7 @@
 
 static int debug = 0;      /* set DEBUG env variable to enable debug output */      
 
-static char *text = NULL;  /* holds the assembler source */
 static char *code = NULL;  /* holds the emitted code */
-static int text_len = 0;   /* total length of the source */
 static int line;           /* currently processed line number */
 
 /* program counter and output counter may not be in sync */
@@ -50,30 +52,35 @@ static int line;           /* currently processed line number */
 static u16 pc = 0;    /* program counter of currently assembled instruction */
 static u16 oc = 0;    /* counter of emitted output bytes */
 
-/* The text variable holds all the assembler source.
-   The main assembler file and all files included are joined by an EOF (0x1A)
-   character and stored as a whole in the text variable. Binary zero
-   marks the end of the assembler text.
-   The filenames variable stores the filenames of all included files.
-   When parsing the source the filenames_idx variable is incremented
-   when en EOF character ist encountered, and the line counter variable is
-   set to filelines[filenames_idx], current filename is set to
-   filenames[filenames_idx].
-*/
 
-#define MAX_FILENAMES 33 /* maximum include files */
+/* file and position structures */
 
-static char *filenames[MAX_FILENAMES];
-static int filelines[MAX_FILENAMES];
-static int filenames_idx = 0;
-static int filenames_len = 0;
+typedef struct asm_file {
+   char *filename;
+   char *text;
+   size_t size;
+} asm_file;
 
-#define EOF_CHAR 0x1a
+typedef struct pos_stack {
+   asm_file *file;
+   char *pos;
+   int line;
+} pos_stack;
+
+/* All files that are read during the assembly passes are stored here. */
+static asm_file asm_files[MAX_FILES];
+static int asm_file_count = 0;
+static asm_file *current_file;             /* currently processed file */
+
+/* position stack is used when processing include files. Every time an
+   include file is about to be processed, the position after the include
+   directive gets pushed onto the stack */
+static pos_stack pos_stk[MAX_POS_STACK];
+static int pos_stk_ptr = 0;
+
 
 /* program listing data */
 static int listing = 0;       /* do program listing? */
-static char *list_pos;
-static u16 list_oc, list_pc;
 static FILE *list_file;
 
 /* data type used when evaluating expressions */
@@ -290,8 +297,8 @@ char *err_msg[] = {
    "malformed character constant",
    "string too long",
    "string expected",
-   "can not open file",
-   "maximum number of include files reached",
+   "can not read file",
+   "maximum file stack size exceeded",
    "byte sized value expected"
 };
 
@@ -385,11 +392,10 @@ u16 digit(const char *p)
 }
 
 #define IS_EOL(p) (((p) == 0x0a) || ((p) == 0x0d))
-#define IS_END(p) (((!(p)) || ((p) == EOF_CHAR) || (p) == 0x0a) || ((p) == 0x0d))
+#define IS_END(p) (((!(p)) || (p) == 0x0a) || ((p) == 0x0d))
 
 void skip_eol(char **p)
 {
-   if (**p == EOF_CHAR) (*p)++;
    if (**p == 0x0d) (*p)++;
    if (**p == 0x0a) (*p)++;
 }
@@ -1040,31 +1046,16 @@ void directive_word(char **p, int pass)
    while (next);
 }
 
-static long file_size(const char *fn)
+static long file_size(FILE *f)
 {
-   FILE *f = fopen(fn, "rb");
-   long size;
-   if (!f) {
-      error_ext(ERR_OPEN, fn);
-   }
+   long pos, size;
+   
+   pos = ftell(f);
    fseek(f, 0, SEEK_END);
    size = ftell(f);
-   fclose(f);
+   fseek(f, pos, SEEK_SET);
+
    return size;
-}
-
-static int read_file(const char *fn, char *buf)
-{
-   FILE *f = fopen(fn, "rb");
-   long size;
-   if (!f) return 0;
-   fseek(f, 0, SEEK_END);
-   size = ftell(f);
-   fseek(f, 0, SEEK_SET);
-   fread(buf, 1, size, f);
-   fclose(f);
-
-   return 1;
 }
 
 static char * str_copy(const char *src)
@@ -1074,71 +1065,94 @@ static char * str_copy(const char *src)
    return dst;
 }
 
-static void add_include_filename(const char *filename)
+static asm_file * read_file(const char *fn)
 {
-   int i;
+   FILE *f;
+   asm_file *file;
 
-   /* store filename and line information for error messages */
-   if (filenames_len + 2 > MAX_FILENAMES)
-      error(ERR_MAXINC);
+   long size;
+   char *buf;
 
-   for (i = filenames_len-1; i>filenames_idx+1; i--) {
-      filenames[i] = filenames[i-2];
-      filelines[i] = filelines[i-2];
+   for (file = asm_files; file < asm_files + asm_file_count; file++) {
+      /* if file is already loaded return it */
+      if (!strcmp(file->filename, fn)) {
+         return file;
+      }
    }
-   filenames[filenames_idx+1] = str_copy(filename);
-   filenames[filenames_idx+2] = str_copy(filenames[filenames_idx]);
-   filelines[filenames_idx+1] = 1;
-   filelines[filenames_idx+2] = line;
-   filenames_len +=2;   
+   
+   /* too many files ? */
+   if (file >= asm_files + MAX_FILES) return NULL;
+
+   /* read file contents */
+   f = fopen(fn, "rb");
+   if (!f) return NULL;
+   size = file_size(f);
+   buf = malloc(size + 1);
+   if (!buf) return NULL;
+   fread(buf, 1, size, f);
+   buf[size] = '\0';
+   fclose(f);
+
+   file->filename = str_copy(fn);
+   file->text = buf;
+   file->size = size;
+   asm_file_count++;
+
+   return file;
+}
+
+static void free_files(void)
+{
+   asm_file *file;
+   for (file = asm_files; file < asm_files + asm_file_count; file++) {
+      free(file->filename);
+      free(file->text);
+   }   
+}
+
+void push_pos_stack(asm_file *f, char *pos, int line)
+{
+   if (pos_stk_ptr >= MAX_POS_STACK) error(ERR_MAXINC);
+
+   pos_stk[pos_stk_ptr].file = f;
+   pos_stk[pos_stk_ptr].pos  = pos;
+   pos_stk[pos_stk_ptr].line = line;
+   pos_stk_ptr++;
+}
+
+void pop_pos_stack(char **p)
+{
+   pos_stk_ptr--; 
+   current_file = pos_stk[pos_stk_ptr].file;
+   *p = pos_stk[pos_stk_ptr].pos;
+   line = pos_stk[pos_stk_ptr].line;
+  
 }
 
 void directive_include(char **p, int pass)
 {
-   char filename[STR_LEN];
-   char *dir_start = *p;
-   int start_offset, end_offset;
-   int filesize, remaining_len;
-   int old_len = text_len;
-
+   char fn[STR_LEN];
+   asm_file *file;
    (void)pass;
-
-   /* find beginning of include directive */
-   while (*dir_start != '.') dir_start--;
-   start_offset = (int)(dir_start - text);
 
    /* read filename */
    skip_white(p);
-   string_lit(p, filename, STR_LEN);
+   string_lit(p, fn, STR_LEN);
    skip_white_and_comment(p);
    if (!IS_END(**p)) error(ERR_EOL);
+   skip_eol(p);
 
-   /* calculate offset into source after include directive... */
-   end_offset = (int)(*p - text);
-   /* ... and the remaining source length */
-   remaining_len = text_len - end_offset;
 
-   filesize = file_size(filename);
-   
-   /* calculate new source length and aquire memory */
-   text_len = (int)(text_len + filesize - (*p - dir_start) + 2);
-   if (text_len > old_len) text = realloc(text, text_len + 1);
+   /* read the include file */
+   file = read_file(fn);
+   if (!file) error_ext(ERR_OPEN, fn);
 
-   /* make space for include file: 
-      move remaining part of source to end of buffer */
-   memmove(text + start_offset + filesize + 2, text + end_offset, remaining_len + 1);
+   /* push current file and position to stk and set pointers to inc file */
+   push_pos_stack(current_file, *p, line + 1);
 
-   /* read content of included file to reserverd part of buffer */
-   if (!read_file(filename, text + start_offset + 1)) error_ext(ERR_OPEN, filename);
-
-   /* separate source files with EOF character */
-   text[start_offset] = EOF_CHAR;
-   text[start_offset + filesize + 1] = EOF_CHAR;
-
-   /* set source pointer to beginning of included file */
-   *p = text + start_offset;
-
-   add_include_filename(filename);
+   current_file = file;
+   *p = current_file->text;
+   line = 1;
 }
 
 void directive_fill(char **p, int pass)
@@ -1164,14 +1178,15 @@ void directive_fill(char **p, int pass)
 
    if (pass == 2) {
       memset(code + oc, filler.v, count.v);
-      oc += count.v;
    }
+   oc += count.v;
 }
 
-void directive(char **p, int pass)
+int directive(char **p, int pass)
 {
    char id[ID_LEN];
    value v;
+   int again = 0;
 
    ident_upcase(p, id);
 
@@ -1191,10 +1206,19 @@ void directive(char **p, int pass)
    }
    else if (!strcmp(id, "INCLUDE")) {
       directive_include(p, pass);
+      again = 1;
+   }
+   else if (!strcmp(id, "NOLIST")) {
+
+   }
+   else if (!strcmp(id, "LIST")) {
+      
    }
    else {
       error(ERR_NODIRECTIVE);
    }
+
+   return again;
 }
 
 int ismnemonic(const char *id)
@@ -1212,14 +1236,15 @@ int ismnemonic(const char *id)
 }
 
 /* processes one statement or assembler instruction */
-void statement(char **p, int pass)
+int statement(char **p, int pass)
 {
    char id1[ID_LEN];
    value v1;
    char *pt;
+   int again = 0;
 
    skip_white_and_comment(p);
-   if (IS_END(**p)) return;
+   if (IS_END(**p)) return again;
    pt = *p;
 
    /* first check for variable or label definition */
@@ -1230,7 +1255,7 @@ void statement(char **p, int pass)
          (*p)++;
          v1 = expr(p);
          define_variable(id1, v1);
-         return;
+         return again;
       }
       else if ((**p == ':') || (!ismnemonic(id1))) {
          if (**p == ':') (*p)++;
@@ -1238,7 +1263,7 @@ void statement(char **p, int pass)
          current_label = define_label(id1, pc);
          
          skip_white_and_comment(p);
-         if (IS_END(**p)) return;
+         if (IS_END(**p)) return again;
       }
       else *p = pt;
    }
@@ -1253,35 +1278,41 @@ void statement(char **p, int pass)
       skip_white(p);
       if (**p == ':') (*p)++;
       skip_white_and_comment(p);
-      if (IS_END(**p)) return;
+      if (IS_END(**p)) return again;
    }
 
    /* check for directive or instruction */
    if (**p == '.') {
       (*p)++;
-      directive(p, pass);
+      again = directive(p, pass);
    }
    else if (isalpha(**p)) {
       instruction(p, pass);
    }
    else error(ERR_STMT);
+
+   return again;
 }
 
-void list_statement(char *p)
+void list_statement(char *statement_start, unsigned short pc_start,
+                    unsigned short oc_start, char *p)
 {
    int count = 0;
-   if (list_oc < oc)
+
+   if (!listing) return;
+
+   if (oc_start < oc)
       /* output program counter, but only if we emitted code */
-      fprintf(list_file, "%04X  %04X  ", list_oc, list_pc);
+      fprintf(list_file, "%04X  %04X  ", oc_start, pc_start);
    else
       fputs("            ", list_file);
 
-   while (list_oc < oc && count < 3) {
-      fprintf(list_file, "%02X ", (int)code[list_oc++] & 0xff);
+   while (oc_start < oc && count < 3) {
+      fprintf(list_file, "%02X ", (int)code[oc_start++] & 0xff);
       count++;
    }
 
-   if (list_oc + count < oc)
+   if (oc_start + count < oc)
       fputs("...", list_file);
    else {
       while (count < 4) {
@@ -1290,7 +1321,7 @@ void list_statement(char *p)
       }
    }
    fprintf(list_file, "%6d: ", line);
-   fwrite(list_pos, 1, (int)(p - list_pos), list_file);
+   fwrite(statement_start, 1, (int)(p - statement_start), list_file);
    fputs("\n", list_file);
 }
 
@@ -1357,85 +1388,79 @@ void list_symbols(void)
    free(sym_array);
 }
 
+void list_filename(char *fn)
+{
+   if (listing) {
+      fprintf(list_file, "                          FILE %s\n", fn);
+   }
+}
+
 void pass(char **p, int pass)
 {
    int err;
+   
+   char *statement_start;
+   asm_file *last_file;
+   unsigned short oc_start;
+   unsigned short pc_start;
+
+   pc = 0;  /* initialize program counter to zero */
+   oc = 0;  /* initialize output counter to zero */
+
+   last_file = current_file;
    line = 1;
    current_label = NULL;
-   pc = 0;
-   oc = 0;
-   filenames_idx = 0;
 
    if (!(err = setjmp(error_jmp))) {
-      while (**p) {
-         statement(p, pass);
+      while (**p || pos_stk_ptr > 0) {
+
+         if (current_file != last_file) {
+            /* file changed (start or terminate processing of inc file ) */
+            if (pass == 2) list_filename(current_file->filename);
+         }
+
+         if (!**p) {
+            /* pop position from file stack (return from include) if at END */
+            pop_pos_stack(p);
+            continue;
+         }
+
+         statement_start = *p;
+         pc_start = pc;
+         oc_start = oc;
+
+         if (statement(p, pass)) {
+            /* statement returns an "again" flag that is set by the include
+               directive. If true we have to start over again with new file,
+               position and line number */
+            continue;
+         }
+
          skip_white_and_comment(p);
 
-         if (!IS_END(**p)) error(ERR_EOL);
-
-         if (listing)
-            list_statement(*p);
-
-         if (**p == EOF_CHAR) {
-            (*p)++;
-            filenames_idx++;
-            line = filelines[filenames_idx];
-            if (IS_EOL(**p)) {
-               line++;
-               skip_eol(p);               
-            }
-
-            if (listing)
-               fprintf(list_file,
-                  "                          "
-                  "<<< FILE %s >>>\n", filenames[filenames_idx]);
-         }
-         else {
-            line++;
-            skip_eol(p);
+         if (!IS_END(**p)) {
+            /* every statement ends with a newline. if it is not found here
+               it is an error condition */
+            error(ERR_EOL);
          }
 
-         if (listing) {
-            list_oc = oc;
-            list_pc = pc;
-            list_pos = *p;
-         }
+         if (pass == 2)
+            list_statement(statement_start, pc_start, oc_start, *p);
+         
+         skip_eol(p);
+         line++;
+
+         last_file = current_file;
       }
    }
    else {
       if (error_type == ERROR_NORM)
-         printf("%s:%d: error: %s\n", filenames[filenames_idx], 
+         printf("%s:%d: error: %s\n", current_file->filename, 
             line, err_msg[err]);
       else
-         printf("%s:%d: error: %s %s\n", filenames[filenames_idx], line,
+         printf("%s:%d: error: %s %s\n", current_file->filename, line,
             err_msg[err], error_hint);
    }      
-}
-
-char *read_main(const char *fn)
-{
-   char *buf = NULL;
-   FILE *f = fopen(fn, "rb");
-   long size;
-   if (!f) return 0;
-   fseek(f, 0, SEEK_END);
-   size = ftell(f);
-   fseek(f, 0, SEEK_SET);
-   buf = malloc(size+1);
-   if (!buf) return NULL;
-   fread(buf, 1, size, f);
-   fclose(f);
-   buf[size] = '\0';
-
-   text = buf;
-   text_len = size;
-
-   filenames[0] = str_copy(fn);
-   filelines[0] = 1;
-   filenames_idx = 0;
-   filenames_len = 1;
-
-   return buf;
 }
 
 int save_code(const char *fn, const char *data, int len)
@@ -1450,22 +1475,6 @@ int save_code(const char *fn, const char *data, int len)
    return 1;
 }
 
-void dump_filenames(void)
-{
-   int i;
-   for (i=0; i<filenames_len; i++) {
-      printf("file %s, line %d\n", filenames[i], filelines[i]);
-   }
-}
-
-void free_filenames(void)
-{
-   int i;
-   for (i=0; i < filenames_len; i++) {
-      free(filenames[i]);
-   }
-}
-
 int init_listing(char *fn)
 {
    time_t t;
@@ -1477,15 +1486,12 @@ int init_listing(char *fn)
    if (!list_file) return 0;
 
    listing = 1;   
-   list_pos = text;
-   list_oc = 0;
-   list_pc = 0;
 
    time(&t);
    tm = localtime(&t);
    strftime(ts, sizeof(ts), "%Y-%m-%d %H:%M", tm);
 
-   fprintf(list_file, "ASM6502 LISTING FOR %s @ %s\n\n", filenames[0], ts);
+   fprintf(list_file, "ASM6502 LISTING FOR %s @ %s\n\n", current_file->filename, ts);
    fprintf(list_file, "FPos  PC    Code          Line# Assembler text\n");
 
    return 1;
@@ -1505,13 +1511,13 @@ int main(int argc, char *argv[])
       return EXIT_FAILURE;
    }
 
-   if (!read_main(argv[1])) {
+   if (!(current_file = read_file(argv[1]))) {
       printf("error loading file\n");
       errors = 1;
       goto ret0;
    }
 
-   ttext = text;
+   ttext = current_file->text;
    pass(&ttext, 1);
    if (errors) {
       goto ret1;
@@ -1532,7 +1538,7 @@ int main(int argc, char *argv[])
       printf("writing listing to %s\n", argv[3]);
    }
 
-   ttext = text;
+   ttext = current_file->text;
    code = malloc(oc);
    pass(&ttext, 2);
    if (errors) {
@@ -1543,6 +1549,7 @@ int main(int argc, char *argv[])
       list_symbols();
 
    printf("output size = %d bytes\n", oc);
+   fflush(stdout);
 
    if (!save_code(argv[2], code, oc)) {
       printf("error saving file\n");
@@ -1550,21 +1557,13 @@ int main(int argc, char *argv[])
       goto ret2;
    }
 
-   if (debug) {
-      dump_filenames();
-      printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n");
-      dump_symbols();
-      printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n%s\n", text);
-   }
-
 ret2:
    if (list_file) fclose(list_file);
    free(code);
 ret1:
-   free(text);
+   free_files();
 ret0:
    free_symbols(&symbols);
-   free_filenames();
 
    if (errors) return EXIT_FAILURE;
    else return EXIT_SUCCESS;
