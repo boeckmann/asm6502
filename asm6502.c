@@ -65,6 +65,7 @@ typedef struct pos_stack {
    asm_file *file;
    char *pos;
    int line;
+   int listing;
 } pos_stack;
 
 /* All files that are read during the assembly passes are stored here. */
@@ -81,6 +82,7 @@ static int pos_stk_ptr = 0;
 
 /* program listing data */
 static int listing = 0;       /* do program listing? */
+static int listing_skip_one = 0;  /* suppress current statement in listing */
 static FILE *list_file;
 
 /* data type used when evaluating expressions */
@@ -1117,6 +1119,7 @@ void push_pos_stack(asm_file *f, char *pos, int line)
    pos_stk[pos_stk_ptr].file = f;
    pos_stk[pos_stk_ptr].pos  = pos;
    pos_stk[pos_stk_ptr].line = line;
+   pos_stk[pos_stk_ptr].listing = listing;
    pos_stk_ptr++;
 }
 
@@ -1126,7 +1129,7 @@ void pop_pos_stack(char **p)
    current_file = pos_stk[pos_stk_ptr].file;
    *p = pos_stk[pos_stk_ptr].pos;
    line = pos_stk[pos_stk_ptr].line;
-  
+   listing = pos_stk[pos_stk_ptr].listing;
 }
 
 void directive_include(char **p, int pass)
@@ -1209,10 +1212,11 @@ int directive(char **p, int pass)
       again = 1;
    }
    else if (!strcmp(id, "NOLIST")) {
-
+      listing = 0;
    }
    else if (!strcmp(id, "LIST")) {
-      
+      listing = list_file != NULL;
+      listing_skip_one = 1;
    }
    else {
       error(ERR_NODIRECTIVE);
@@ -1299,7 +1303,7 @@ void list_statement(char *statement_start, unsigned short pc_start,
 {
    int count = 0;
 
-   if (!listing) return;
+   if (!listing || listing_skip_one) return;
 
    if (oc_start < oc)
       /* output program counter, but only if we emitted code */
@@ -1410,6 +1414,7 @@ void pass(char **p, int pass)
    last_file = current_file;
    line = 1;
    current_label = NULL;
+   listing = list_file != NULL;
 
    if (!(err = setjmp(error_jmp))) {
       while (**p || pos_stk_ptr > 0) {
@@ -1446,10 +1451,11 @@ void pass(char **p, int pass)
 
          if (pass == 2)
             list_statement(statement_start, pc_start, oc_start, *p);
-         
+                 
          skip_eol(p);
          line++;
 
+         listing_skip_one = 0;
          last_file = current_file;
       }
    }
@@ -1484,8 +1490,6 @@ int init_listing(char *fn)
    list_file = fopen(fn, "wb");
 
    if (!list_file) return 0;
-
-   listing = 1;   
 
    time(&t);
    tm = localtime(&t);
