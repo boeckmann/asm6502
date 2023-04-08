@@ -65,7 +65,8 @@ typedef struct pos_stack {
    asm_file *file;
    char *pos;
    int line;
-   int listing;
+   u8 listing;          /* per-statement listing enabled ? */
+   u8 listing_enabled;  /* global listing enabled? may override listing */
 } pos_stack;
 
 /* All files that are read during the assembly passes are stored here. */
@@ -81,7 +82,9 @@ static int pos_stk_ptr = 0;
 
 
 /* program listing data */
-static int listing = 0;       /* do program listing? */
+static int listing_enabled = 0;   /* per-file listing flag */
+static int listing = 0;           /* per-statement listing enabled ? may 
+                                     be changed by .list and .nolist       */
 static int listing_skip_one = 0;  /* suppress current statement in listing */
 static FILE *list_file;
 
@@ -101,6 +104,7 @@ typedef struct symbol {
    char name[ID_LEN];
    value value;
    u8 kind;                /* is it a label or a variable? */
+   u8 flags;
    struct symbol *next;
    struct symbol *locals;  /* local subdefinitions */
 } symbol;
@@ -153,6 +157,7 @@ symbol * new_symbol(const char *name)
    sym->value.v = 0;
    sym->value.t = 0;
    sym->kind = 0;
+   sym->flags = 0;
    sym->locals = NULL;
    return sym;   
 }
@@ -1120,6 +1125,8 @@ void push_pos_stack(asm_file *f, char *pos, int line)
    pos_stk[pos_stk_ptr].pos  = pos;
    pos_stk[pos_stk_ptr].line = line;
    pos_stk[pos_stk_ptr].listing = listing;
+   pos_stk[pos_stk_ptr].listing_enabled = listing_enabled;
+   listing_enabled = listing;
    pos_stk_ptr++;
 }
 
@@ -1130,6 +1137,7 @@ void pop_pos_stack(char **p)
    *p = pos_stk[pos_stk_ptr].pos;
    line = pos_stk[pos_stk_ptr].line;
    listing = pos_stk[pos_stk_ptr].listing;
+   listing_enabled = pos_stk[pos_stk_ptr].listing_enabled;
 }
 
 void directive_include(char **p, int pass)
@@ -1215,7 +1223,7 @@ int directive(char **p, int pass)
       listing = 0;
    }
    else if (!strcmp(id, "LIST")) {
-      listing = list_file != NULL;
+      listing = listing_enabled;
       listing_skip_one = 1;
    }
    else {
@@ -1414,7 +1422,7 @@ void pass(char **p, int pass)
    last_file = current_file;
    line = 1;
    current_label = NULL;
-   listing = list_file != NULL;
+   listing = listing_enabled;
 
    if (!(err = setjmp(error_jmp))) {
       while (**p || pos_stk_ptr > 0) {
@@ -1488,6 +1496,7 @@ int init_listing(char *fn)
    char ts[80];
 
    list_file = fopen(fn, "wb");
+   listing_enabled = list_file != NULL;
 
    if (!list_file) return 0;
 
