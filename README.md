@@ -14,72 +14,41 @@ assembly are not supported. This may be implemented in the future.
 
 ## Example
 The following example implements a hello world program for the Commodore C64.
-Assemble with `asm6502 helloc64.asm helloc64.prg`. 
+Assemble with `asm6502 helloc64.asm helloc64.prg helloc64.lst` to generate
+`helloc64.prg` containing the C64 program and `helloc64.lst` containing 
+the program listing. 
 
 	; C64 Hello World
-	; assemble to .PRG file: asm6502 helloc64.asm helloc64.prg
+	; assemble to .PRG file: asm6502 helloc64.asm helloc64.prg helloc64.lst
 	
 	LOAD_ADDR = $0801
 	
-        	.word LOAD_ADDR         ; .PRG header: load address
-        	.org  LOAD_ADDR
+	        .word LOAD_ADDR         ; .PRG header: load address
+	        .org  LOAD_ADDR
 	
 	CHROUT = $FFD2                  ; kernal function address
 	SYS    = $9E                    ; basic SYS token number
-	CR     = 13                     ; carrige return character
-	LF     = %1010                  ; line feed character
 	
 	basic_upstart:                  ; BASIC code: 10 SYS 2062
-        	.word @end, 10          ; ptr to next basic line and line number 10
-        	.byte SYS, " 2062", 0   ; SYS token and address string of subroutine
+	        .word @end, 10          ; ptr to next basic line and line number 10
+	        .byte SYS, " 2062",0    ; SYS token and address string of subroutine
 	@end    .word 0                 ; null ptr to indicate end of basic text
 	
 	start:                          ; this is at address 2062 ($080E)
-        	ldx #0
-	@l      lda hello_msg,x
-        	jsr CHROUT
-        	inx
-        	cpx #hello_len
-        	bne @l
-        	rts
+	        ldx #0
+	@l      lda hello@msg,x
+	        jsr CHROUT
+	        inx
+	        cpx #hello@len
+	        bne @l
+	        rts
 	
-	hello_msg .byte "HELLO, WORLD!", CR, LF
-	hello_len = @ - hello_msg
-
-To produce a listing file assemble with
-`asm6502 helloc64.asm helloc64.prg hello64.lst`. The output looks like this:
-
-    ASM6502 LISTING FOR helloc64.asm @ 2023-04-02 17:27
-    
-    FPos  PC    Code          Line# Assembler text
-                                 1: ; C64 Hello World
-                                 2: ; assemble to .PRG file: asm6502 helloc64.asm helloc64.prg
-                                 3: 
-                                 4: LOAD_ADDR = $0801
-                                 5: 
-    0000  0000  01 08            6:         .word LOAD_ADDR         ; .PRG header: load address
-                                 7:         .org  LOAD_ADDR
-                                 8: 
-                                 9: CHROUT = $FFD2                  ; kernal function address
-                                10: SYS    = $9E                    ; basic SYS token number
-                                11: CR     = 13                     ; carrige return character
-                                12: LF     = %1010                  ; line feed character
-                                13: 
-                                14: basic_upstart:                  ; BASIC code: 10 SYS 2062
-    0002  0801  0C 08 0A        15:         .word @end, 10          ; ptr to next basic line and line number 10
-    0006  0805  9E 20 32 ...    16:         .byte SYS, " 2062",0    ; SYS token and address string of subroutine
-    000D  080C  00 00           17: @end    .word 0                 ; null ptr to indicate end of basic text
-                                18: 
-                                19: start:                          ; this is at address 2062 ($080E)
-    000F  080E  A2 00           20:         ldx #0
-    0011  0810  BD 1C 08        21: @l      lda hello_msg,x
-    ...
-
-The column *FPos* indicates the position in the output file while *PC*
-indicates the address of the program counter. FPos and PC may not be in sync
-if an *.ORG* directive is used in the assembler text. It may be used if the
-binary image is not loaded to address zero, for example if it is loaded as
-a .PRG file on commodore systems.
+	hello:
+	  @msg .byte "HELLO, WORLD!", CR, LF
+	  @len = @ - @msg
+	
+	CR = 13                         ; carrige return character
+	LF = %1010                      ; line feed character as binary number
 
 ## Constraints
 ```
@@ -324,3 +293,76 @@ This one is correct (indirect addressing):
 
 	ORA (15,x)
 	ORA (15),y
+
+## Listing Files
+ASM6502 is capable of producing listing files containing the generated
+code in hexedecimal representation along the lines of the input file. It also
+contains a list of global labels and variables once sorted by address and once
+sorted by name
+
+The column *FPos* indicates the position in the output file while *PC*
+indicates the address of the program counter. FPos and PC may not be in sync
+if an *.ORG* directive is used in the assembler text.
+
+Listing of the `helloc64.asm` file from the introduction:
+
+ASM6502 LISTING FOR helloc64.asm @ 2023-04-09 14:19
+
+	FPos  PC    Code          Line# Assembler text
+	                             1: ; C64 Hello World
+	                             2: ; assemble to .PRG file: asm6502 helloc64.asm helloc64.prg
+	                             3: 
+	                             4: LOAD_ADDR = $0801
+	                             5: 
+	0000  0000  01 08            6:         .word LOAD_ADDR         ; .PRG header: load address
+	                             7:         .org  LOAD_ADDR
+	                             8: 
+	                             9: CHROUT = $FFD2                  ; kernal function address
+	                            10: SYS    = $9E                    ; basic SYS token number
+	                            11: 
+	                            12: basic_upstart:                  ; BASIC code: 10 SYS 2062
+	0002  0801  0C 08 0A        13:         .word @end, 10          ; ptr to next basic line and line 	number 10
+	0006  0805  9E 20 32 ...    14:         .byte SYS, " 2062",0    ; SYS token and address string of 	subroutine
+	000D  080C  00 00           15: @end    .word 0                 ; null ptr to indicate end of basic 	text
+	                            16: 
+	                            17: start:                          ; this is at address 2062 ($080E)
+	000F  080E  A2 00           18:         ldx #0
+	0011  0810  BD 1C 08        19: @l      lda hello@msg,x
+	0014  0813  20 D2 FF        20:         jsr CHROUT
+	0017  0816  E8              21:         inx
+	0018  0817  E0 0F           22:         cpx #hello@len
+	001A  0819  D0 F5           23:         bne @l
+	001C  081B  60              24:         rts
+	                            25: 
+	                            26: hello:
+	001D  081C  48 45 4C ...    27:   @msg .byte "HELLO, WORLD!", CR, LF
+	                            28:   @len = @ - @msg
+	                            29: 
+	                            30: CR = 13                         ; carrige return character
+	                            31: LF = %1010                      ; line feed character (decimal 10)
+	
+	
+	<<< SYMBOLS BY NAME >>>
+	
+	   HEX    DEC   NAME
+	V  FFD2  65490   CHROUT                          
+	V  000D     13   CR                              
+	V  000A     10   LF                              
+	V  0801   2049   LOAD_ADDR                       
+	V    9E    158   SYS                             
+	L  0801   2049   basic_upstart                   
+	L  081C   2076   hello                           
+	L  080E   2062   start                           
+	
+	
+	<<< SYMBOLS BY VALUE >>>
+	
+	   HEX    DEC   NAME
+	V  000A     10   LF                              
+	V  000D     13   CR                              
+	V    9E    158   SYS                             
+	L  0801   2049   basic_upstart                   
+	V  0801   2049   LOAD_ADDR                       
+	L  080E   2062   start                           
+	L  081C   2076   hello                           
+	V  FFD2  65490   CHROUT                          
