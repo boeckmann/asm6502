@@ -98,33 +98,39 @@ determined.
 
 ## Symbols
 The assembler distinguishes two types of case sensitive symbols: labels and
-variables. A label is defined at the beginning of a line by appending its name
+variables. A label stores the address of the current instruction or
+directive. It is defined at the beginning of a line by appending its name
 with a colon. The colon may be left out if the label name is not also an
-instruction mnemonic. Labels store the address of the current instruction or
-directive. Variables are defined by assigning an expression to them. In the
-following example, hello is a label and CHROUT is a variable.
+instruction mnemonic.
+
+A variable is defined by assigning an expression to it. In the following
+example, hello is a label and CHROUT is a variable.
 
 	CHROUT = $ffd2
 	hello:  jmp CHROUT
 
-Labels are always of type word. Labels may be defined as local labels by
-prefixing them with `@`. Their scope reaches from the previously defined
-non-local label to the next non-local label.
+Labels and variables may be of type byte or word. A label is of type byte
+if it is assigned an address within the first 256 bytes (zero page),
+otherwise it is of type word. The data type of a variable is that of the
+expression assigned to it, unless it is forward referenced.
 
-Variables may be of type byte or word, depending on the data type of the
-expression.
+Symbols may be forward referenced. That means that they can be used in
+expressions before they are defined. Forward referenced symbols are *always*
+of type word, regardless what is assigned to them.
 
-If a symbol name is encountered in an expression before it is defined it
-gets implicitly declared as a label with type word and unknown value. That
-label must be given a value later in the source code.
+Labels may not be redefined. If a variable is assigned a value multiple times,
+it must be the same value. Otherwise it is an illegal redefinition.
 
-A symbol declared as label may not be redefined as variable and vice versa.
-So the following is an error, because *CR* and *LF* are declared as labels in
-the first line while in line two and three they are treated as variables. 
+Symbols may be defined locally by prepending them with `@`. They are
+assiciated with the previous non-local label defined. They may be referenced
+within expressions locally by `@name` or with their qualified name
+`label@name` outside their local scope. Example:
 
-	hello_msg .byte "HELLO, WORLD!", CR, LF
-	CR = $0C	; error: illegal redefinition
-	LF = $0A	; error: illegal redefinition
+```
+        jmp hello@l		; fully qualified label reference
+hello:
+  @l    jmp @l			; local label reference
+```
 
 ## Expressions
 There are many places where expressions may occur, for example on the right
@@ -221,6 +227,19 @@ Strings enclosed by " may also be used.
 Produces one or more output words.
 
 	.WORD $0801
+
+## .LIST and .NOLIST
+If a listing file is given via command line, listing generation is initially
+enabled. If the user wants some parts of the code to be excluded from the
+listing, the region can be surrounded by `.NOLIST` and `.LIST` statements.
+
+If listing generation is disabled when an `.INCLUDE` statement is processed,
+`.LIST` inside the include file has no effect.
+
+The listing generation flag is restored when the processing of an include file
+finished. If a `.NOLIST` statement is contained in an include file and the
+listing is activated for the parent file, listing generation is resumed
+after processing the include file from the line after the `.INCLUDE` line.
 
 ## Instructions
 In contrast to symbols, instruction mnemonics are case insensitive. Every
