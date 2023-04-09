@@ -50,16 +50,6 @@ the program listing.
 	CR = 13                         ; carrige return character
 	LF = %1010                      ; line feed character as binary number
 
-## Constraints
-```
-Maximum identifier length: 32
-Maximum line length      : no restriction
-
-Maximum number of files :  64
-Maximum file name length: 255
-Maximum include depth   :  32
-```
-
 ## Data types
 Two data types are known to the assembler: 8-bit unsigned byte and 16-bit
 unsigned word. In most cases, the type of an expression is automatically
@@ -210,13 +200,23 @@ finished. If a `.NOLIST` statement is contained in an include file and the
 listing is activated for the parent file, listing generation is resumed
 after processing the include file from the line after the `.INCLUDE` line.
 
-## Instructions
-In contrast to symbols, instruction mnemonics are case insensitive. Every
-assembler instruction consists of a mnemonic followed by at most one numeric
-argument including addressing mode specifiers.
+## Constraints
+The following constraints apply for AMS6502:
 
-## Addressing modes
-The assembler supports all MOS6502 addressing modes.
+```
+Maximum identifier length: 32
+Maximum line length      : no restriction
+
+Maximum number of files :  64
+Maximum file name length: 255
+Maximum include depth   :  32
+```
+
+## Instructions
+Every assembler instruction consists of a mnemonic identifying the machine
+instruction followed by at most one numeric argument including addressing
+mode specifiers. Instruction mnemonics are case insensitive. The assembler
+supports all MOS6502 addressing modes:
 
 ### Implicit and accumulator addressing
 Either no argument or accumulator is implicitly assumed by the instruction
@@ -290,23 +290,29 @@ This one is correct (indirect addressing):
 	JMP ((2+3)*1000)
 
 ## Indirect X and indirect Y addressing
+Indirect X addresses the byte referenced by the contents of the word stored at
+zero page address b + X. Indirect Y adds Y to the address word stored in zero
+page address b to calculate the address to operate on.
 
-	ORA (15,x)
-	ORA (15),y
+	b = 15
+	ORA (b,X)
+	ORA (b),Y
 
 ## Listing Files
 ASM6502 is capable of producing listing files containing the generated
-code in hexedecimal representation along the lines of the input file. It also
-contains a list of global labels and variables once sorted by address and once
-sorted by name
+code in hexedecimal representation along the lines of the input file.
 
 The column *FPos* indicates the position in the output file while *PC*
 indicates the address of the program counter. FPos and PC may not be in sync
 if an *.ORG* directive is used in the assembler text.
 
+The listing also contains a list of global labels and variables, once sorted
+by address and once sorted by name. 2-digit hex values in symbol table
+indicate values of type byte. 4-digit hex values are of type word.
+
 Listing of the `helloc64.asm` file from the introduction:
 
-ASM6502 LISTING FOR helloc64.asm @ 2023-04-09 14:19
+	ASM6502 LISTING FOR helloc64.asm @ 2023-04-09 14:19
 
 	FPos  PC    Code          Line# Assembler text
 	                             1: ; C64 Hello World
