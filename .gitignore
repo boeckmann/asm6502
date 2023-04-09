@@ -16,6 +16,9 @@ output
 *.map
 *.obj
 
+# Borland C++
+*.dsk
+
 # operating system stuff
 .DS_Store
 .syncthing*
