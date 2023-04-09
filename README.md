@@ -122,7 +122,7 @@ Labels may not be redefined. If a variable is assigned a value multiple times,
 it must be the same value. Otherwise it is an illegal redefinition.
 
 Symbols may be defined locally by prepending them with `@`. They are
-assiciated with the previous non-local label defined. They may be referenced
+associated with the previous non-local label defined. They may be referenced
 within expressions locally by `@name` or with their qualified name
 `label@name` outside their local scope. Example:
 
