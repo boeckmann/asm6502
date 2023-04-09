@@ -1,4 +1,5 @@
-; C64 KERNAL definitions
+; C64 KERNAL definitions - listing disabled
+.nolist
 
 LISTEN = $FFB1
 TALK   = $FFB4
