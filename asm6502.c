@@ -65,8 +65,8 @@ typedef struct pos_stack {
    asm_file *file;
    char *pos;
    int line;
-   u8 listing;          /* per-statement listing enabled ? */
-   u8 listing_enabled;  /* global listing enabled? may override listing */
+   u8 listing;
+   u8 listing_enabled;  
 } pos_stack;
 
 /* All files that are read during the assembly passes are stored here. */
@@ -82,9 +82,10 @@ static int pos_stk_ptr = 0;
 
 
 /* program listing data */
-static int listing_enabled = 0;   /* per-file listing flag */
-static int listing = 0;           /* per-statement listing enabled ? may 
-                                     be changed by .list and .nolist       */
+static int listing_enabled = 0;   /* statement listing activated ? */
+static int listing = 0;           /* per-file listing enabled? must be true 
+                                     for listing above having any effect */
+
 static int listing_skip_one = 0;  /* suppress current statement in listing */
 static FILE *list_file;
 
@@ -189,15 +190,15 @@ symbol *aquire(const char *name)
    return sym;
 }
 
-symbol *aquire_local(const char *name)
+symbol *aquire_local(const char *name, symbol *parent)
 {
    symbol *sym;
-   if (!current_label) return NULL;
-   sym = lookup(name, current_label->locals);
+   if (!parent) return NULL;
+   sym = lookup(name, parent->locals);
    if (!sym) {
       sym = new_symbol(name);
-      sym->next = current_label->locals;
-      current_label->locals = sym;
+      sym->next = parent->locals;
+      parent->locals = sym;
    }
    return sym;
 }
@@ -300,7 +301,7 @@ char *err_msg[] = {
    "string not terminated",
    "byte value out of range",
    "illegal redefinition of local label",
-   "local label definition requires previous global label",
+   "no scope for local definition",
    "malformed character constant",
    "string too long",
    "string expected",
@@ -331,9 +332,11 @@ void error_ext(int err, const char *msg)
    longjmp(error_jmp, err);
 }
 
-symbol * define_label(const char *id, u16 v)
+symbol * define_label(const char *id, u16 v, symbol *parent)
 {
-   symbol *sym = aquire(id);
+   symbol *sym;
+   if (parent) sym = aquire_local(id, parent);
+   else sym = aquire(id);
 
    if (IS_VAR(*sym) || (DEFINED(sym->value) && (sym->value.v != v)))
       error(ERR_REDEF);
@@ -346,23 +349,12 @@ symbol * define_label(const char *id, u16 v)
    return sym;
 }
 
-symbol * define_local_label(char *id, u16 v)
+symbol * reserve_label(const char *id, symbol *parent)
 {
    symbol *sym;
+   if (parent) sym = aquire_local(id, parent);
+   else sym = aquire(id);
 
-   if (!current_label) error(ERR_NO_GLOBAL);
-
-   sym = aquire_local(id);
-   if ((DEFINED(sym->value) && (sym->value.v != v))) error(ERR_LOCAL_REDEF);
-   sym->value.v = v;
-   sym->value.t = TYPE_WORD | VALUE_DEFINED;
-   sym->kind = KIND_LBL;
-   return sym;
-}
-
-symbol * reserve_label(const char *id)
-{
-   symbol *sym = aquire(id);
    if (DEFINED(sym->value)) error(ERR_REDEF);
    sym->value.v = 0;
    sym->value.t = TYPE_WORD;
@@ -370,12 +362,23 @@ symbol * reserve_label(const char *id)
    return sym;
 }
 
-void define_variable(const char *id, const value v)
+void define_variable(const char *id, const value v, symbol *parent)
 {
-   symbol *sym = aquire(id);
-   if (DEFINED(sym->value) &&
-         ((sym->value.v != v.v) || (sym->value.t != v.t))) error(ERR_REDEF);
-   sym->value = v;
+   symbol *sym;
+   if (parent) sym = aquire_local(id, parent);
+   else sym = aquire(id);
+
+   /* if already defined make sure the value did not change */
+   if (DEFINED(sym->value) && sym->value.v != v.v) error(ERR_REDEF);
+   sym->value.v = v.v;
+
+   /* if the type is already set do not change it */
+   if (TYPE(sym->value)) {
+      /* if (NUM_TYPE(v.v) > TYPE(sym->value)) error(ERR_REDEF); */
+      if (DEFINED(v)) SET_DEFINED(sym->value);
+   }
+   else sym->value.t = v.t;
+
    /* if previously defined as label make it word sized */
    if (IS_LBL(*sym)) SET_TYPE(sym->value, TYPE_WORD);
    sym->kind = KIND_VAR;
@@ -528,7 +531,7 @@ value primary(char **p)
 {
    value res;
    char id[ID_LEN];
-   symbol *sym;
+   symbol *sym, *local_sym;
 
    skip_white(p);
    if (**p == '(') {
@@ -576,8 +579,19 @@ value primary(char **p)
    else if (isalpha(**p)) {
       ident(p, id);
       sym = lookup(id, symbols);
-      if (!sym) sym = reserve_label(id);
-      res = sym->value;
+      if (!sym) sym = reserve_label(id, NULL);
+      skip_white(p);
+      if (**p == '@') {
+         /* qualified identifier: local label or variable */
+         (*p)++;
+         nident(p, id);
+         local_sym = lookup(id, sym->locals);
+         if (!local_sym) local_sym = reserve_label(id, sym);
+         res = local_sym->value;
+      }
+      else {
+         res = sym->value;         
+      }
    }
    else res = number(p);
    return res;
@@ -1254,44 +1268,51 @@ int statement(char **p, int pass)
    value v1;
    char *pt;
    int again = 0;
+   enum { GLOBAL_LABEL=1, LOCAL_LABEL=2 } label = 0;
 
    skip_white_and_comment(p);
    if (IS_END(**p)) return again;
    pt = *p;
 
    /* first check for variable or label definition */
-   if (isalpha(**p)) {
-      ident(p, id1);
-      skip_white(p);
-      if (**p == '=') {       /* variable definition */
-         (*p)++;
-         v1 = expr(p);
-         define_variable(id1, v1);
-         return again;
-      }
-      else if ((**p == ':') || (!ismnemonic(id1))) {
-         if (**p == ':') (*p)++;
-         
-         current_label = define_label(id1, pc);
-         
-         skip_white_and_comment(p);
-         if (IS_END(**p)) return again;
-      }
-      else *p = pt;
-   }
-
-   /* local label definition */
-   else if (**p == '@') {
+   if (**p == '@') {
       (*p)++;
       nident(p, id1);
-      
-      define_local_label(id1, pc);
-      
       skip_white(p);
+      label = LOCAL_LABEL;
+   }
+   else if (isalpha(**p)) {
+      ident(p, id1);
+      skip_white(p);
+      label = GLOBAL_LABEL;
+   }
+
+   if (label && **p == '=') {       /* variable definition */
+      (*p)++;
+      v1 = expr(p);
+      if (label == GLOBAL_LABEL)
+         define_variable(id1, v1, NULL);
+      else {
+         if (!current_label) error(ERR_NO_GLOBAL);
+         define_variable(id1, v1, current_label);
+      }
+
+      return again;
+   }
+   else if (label && ((**p == ':') || (!ismnemonic(id1)))) {
       if (**p == ':') (*p)++;
+      
+      if (label == GLOBAL_LABEL)
+         current_label = define_label(id1, pc, NULL);
+      else {
+         if (!current_label) error(ERR_NO_GLOBAL);
+         define_label(id1, pc, current_label);
+      }
+
       skip_white_and_comment(p);
       if (IS_END(**p)) return again;
    }
+   else *p = pt;
 
    /* check for directive or instruction */
    if (**p == '.') {
@@ -1403,7 +1424,7 @@ void list_symbols(void)
 void list_filename(char *fn)
 {
    if (listing) {
-      fprintf(list_file, "                          FILE %s\n", fn);
+      fprintf(list_file, "                          FILE: %s\n", fn);
    }
 }
 
