@@ -21,6 +21,15 @@
  * SOFTWARE.
  */
 
+/* customize the following to adapt to the syntax of other assemblers */
+#define DIRECTIVE_LETTER       '.'
+#define LOCAL_LABEL_LETTER     '@'
+#define PROGRAM_COUNTER_LETTER '@'
+
+#define AND_LETTER             '&'
+#define OR_LETTER              '|'
+#define EOR_LETTER             '^'
+
 #define ID_LEN  32  /* maximum length of identifiers (variable names etc.) */
 #define STR_LEN 255 /* maximum length of string literals */
 
@@ -545,24 +554,22 @@ value primary(char **p)
       res.v = 0;
       res.t = 0;
    }
-   else if (**p == '@') {
+   else if (**p == '@' && isalnum(*(*p+1))) {  /* local label*/
       (*p)++;
-      
-      if (isalnum(**p)) {  /* local label*/
-         nident(p, id);
-         sym = lookup(id, current_label->locals);
-         if (sym) {
-            res = sym->value;
-         }
-         else {
-            res.v = 0;
-            res.t = 0;
-         }
+      nident(p, id);
+      sym = lookup(id, current_label->locals);
+      if (sym) {
+         res = sym->value;
       }
-      else {               /* current program counter */
-         res.v = pc;
-         res.t = TYPE_WORD | VALUE_DEFINED;
+      else {
+         res.v = 0;
+         res.t = 0;
       }
+   }
+   else if (**p == PROGRAM_COUNTER_LETTER) {
+      (*p)++;
+      res.v = pc;
+      res.t = TYPE_WORD | VALUE_DEFINED;
    }
    else if (**p == '\'') {
       (*p)++;
@@ -580,7 +587,7 @@ value primary(char **p)
       sym = lookup(id, symbols);
       if (!sym) sym = reserve_label(id, NULL);
       skip_white(p);
-      if (**p == '@') {
+      if (**p == LOCAL_LABEL_LETTER) {
          /* qualified identifier: local label or variable */
          (*p)++;
          nident(p, id);
@@ -606,7 +613,7 @@ value product(char **p)
    skip_white(p);
    op = **p;
 
-   while((op == '*') || (op == '&') || (op == '/')) {
+   while((op == '*') || (op == '/') || (op == AND_LETTER)) {
       (*p)++;
       n2 = primary(p);
 
@@ -615,7 +622,7 @@ value product(char **p)
             res.v = (u16)(res.v * n2.v); break;
          case '/':
             res.v = (u16)(res.v / n2.v); break;
-         case '&':
+         case AND_LETTER:
             res.v = (u16)(res.v & n2.v); break;
       }
 
@@ -652,7 +659,8 @@ value term(char **p)
    skip_white(p);
    op = **p;
 
-   while ((op == '+') || (op == '-') || (op == '|') || (op == '^')) {
+   while ((op == '+') || (op == '-') || 
+          (op == OR_LETTER) || (op == EOR_LETTER)) {
       (*p)++;
       n2 = product(p);
 
@@ -661,9 +669,9 @@ value term(char **p)
             res.v = res.v + n2.v; break;
          case '-':
             res.v = res.v - n2.v; break;
-         case '|':
+         case OR_LETTER:
             res.v = res.v | n2.v; break;
-         case '^':
+         case EOR_LETTER:
             res.v = res.v ^ n2.v; break;
       }
       INFERE_TYPE(res, n2);
@@ -909,7 +917,6 @@ int instruction_abxy_zpxy(char **p, int pass, idesc *instr, value v)
    else {
       emit_instr_2(instr, am, v.v, pass);
    }
-
 
    return am;
 }
@@ -1276,7 +1283,7 @@ int statement(char **p, int pass)
    pt = *p;
 
    /* first check for variable or label definition */
-   if (**p == '@') {
+   if (**p == LOCAL_LABEL_LETTER) {
       (*p)++;
       nident(p, id1);
       skip_white(p);
@@ -1316,7 +1323,7 @@ int statement(char **p, int pass)
    else *p = pt;
 
    /* check for directive or instruction */
-   if (**p == '.') {
+   if (**p == DIRECTIVE_LETTER) {
       (*p)++;
       again = directive(p, pass);
    }
@@ -1455,7 +1462,7 @@ void pass(char **p, int pass)
          }
 
          if (!**p) {
-            /* pop position from file stack (return from include) if at END */
+            /* pop position from file stack (return from include) if at EOF */
             pop_pos_stack(p);
             continue;
          }
@@ -1503,7 +1510,7 @@ int save_code(const char *fn, const char *data, int len)
 {
    FILE *f = fopen(fn, "wb");
    if (!f) return 0;
-   if ((fwrite(data, len, 1, f) == 0) && (pc != 0)) {
+   if ((fwrite(data, len, 1, f) == 0) && (oc != 0)) {
       fclose(f);
       return 0;
    }
