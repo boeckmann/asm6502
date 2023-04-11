@@ -1,16 +1,9 @@
 # ASM6502
-ASM6502 is a tiny 2-pass assembler for the MOS Technology 6502 microprocessor
-used in many home computers of the 8-bit era. It consists of under 2k lines
-of C code and can be built with compilers conformant to the C89 standard.
+ASM6502 is a small 2-pass assembler for the MOS Technology 6502 microprocessor used in many home computers of the 8-bit era. It consists of under 2k lines of C code and can be built with compilers conformant to the C89 standard.
 
-The assembler currently outputs plain binary files. It implements a few
-features worth mentioning like local labels, the ability to produce listing
-files and the optimization of opcodes. In its current state it is a useful
-assembler confirmed to produce correct code for all supported instruction and
-addressing mode combinations.
+ASM6502 implements some advanced features, like local labels, the ability to produce listing files, and the optimization of opcodes. In its current state, it is a usable assembler confirmed to generate the correct code for all supported instructions and addressing mode combinations. Due to the small size, two features are currently missing, namely conditional assembly and macros. The former may be implemented in the future, but the latter probably not.
 
-But the small size also comes with some compromises: macros and conditional
-assembly are not supported. This may be implemented in the future.
+The assembler outputs plain binary files.
 
 ## Example
 The following example implements a hello world program for the Commodore C64.
@@ -47,8 +40,8 @@ the program listing.
 	  @msg .byte "HELLO, WORLD!", CR, LF
 	  @len = @ - @msg
 	
-	CR = 13                         ; carrige return character
-	LF = %1010                      ; line feed character as binary number
+	CR = 13                         ; carriage return character
+	LF = %1010                      ; line feed character as a binary number
 
 ## Data types
 Two data types are known to the assembler: 8-bit unsigned byte and 16-bit
@@ -56,29 +49,29 @@ unsigned word. In most cases, the type of an expression is automatically
 determined.
 
 ## Symbols
-The assembler distinguishes two types of case sensitive symbols: labels and
+The assembler distinguishes two types of case-sensitive symbols: labels and
 variables. A label stores the address of the current instruction or
 directive. It is defined at the beginning of a line by appending its name
-with a colon. The colon may be left out if the label name is not also an
+with a colon. The colon may be left out if the label name is not an
 instruction mnemonic.
 
 A variable is defined by assigning an expression to it. In the following
-example, hello is a label and CHROUT is a variable.
+example, hello is a label, and CHROUT is a variable.
 
 	CHROUT = $ffd2
 	hello:  jmp CHROUT
 
 Labels and variables may be of type byte or word. A label is of type byte
-if it is assigned an address within the first 256 bytes (zero page),
-otherwise it is of type word. The data type of a variable is that of the
-expression assigned to it, unless it is forward referenced.
+if it is assigned an address within the first 256 bytes (zero page).
+Otherwise, it is of type word. The data type of a variable is that of the
+expression assigned to it, unless it is forward-referenced.
 
-Symbols may be forward referenced. That means that they can be used in
-expressions before they are defined. Forward referenced symbols are *always*
-of type word, regardless what is assigned to them.
+Symbols may be forward-referenced. That means that they can be used in
+expressions before they are defined. Forward-referenced symbols are *always*
+of type word, regardless of what is assigned to them.
 
 Labels may not be redefined. If a variable is assigned a value multiple times,
-it must be the same value. Otherwise it is an illegal redefinition.
+it must be the same value. Otherwise, it is an illegal redefinition.
 
 Symbols may be defined locally by prepending them with `@`. They are
 associated with the previous non-local label defined. They may be referenced
@@ -95,7 +88,7 @@ hello:
 There are many places where expressions may occur, for example on the right
 side of a variable definition or as an argument to a machine instruction. The
 most primitive form of an expression is a numeric constant, which can be given
-in decimal, hexadecimal or binary. The value of the constant determines its
+in decimal, hexadecimal, or binary. The value of the constant determines its
 type. A small value can be forced to be of type word by prepending zeros.
 
 	5     ; decimal byte constant
@@ -127,23 +120,23 @@ Examples:
 	+(x+2)*5
 
 In the last example the unary + is only needed if used as an instruction
-argument to destinguish from 6502 indirect addressing mode.
+argument to distinguish from 6502 indirect addressing mode.
 
 ### Current Program Counter
 The special symbol `@` evaluates to the current value of the program counter.
 It may not be confused with a local label, like `@abc`.
 
-## Line syntax
+## Line Syntax
 Each line may end with a comment started by a semicolon.
 
-At the beginning of a line a label may be specified if the line does not
+At the beginning of a line, a label may be specified if the line does not
 contain a variable definition.
 
 	start:              ; line consisting of a label
 	loop: BNE loop      ; label and instruction
 	msg:  .byte "Hello" ; label followed by a directive
 
-Variables are defined by giving the variable name followed by equal sign
+Variables are defined by giving the variable name followed by an equal sign
 followed by an expression yielding a numeric value of type byte or word:
 
 	CHROUT = $FFD2
@@ -163,7 +156,7 @@ used to "jump around" in the output file.
 ### .FILL directive
 Starting from the current position of the output file, emits as many bytes as
 given by the first argument. If the second argument is given, the region is
-filled with its byte-sized value. Otherwise it is filled with zero. The 
+filled with its byte-sized value. Otherwise, it is filled with zero. The 
 program counter is increased accordingly.
 
 	.FILL 100       ; fill 100 bytes with zero
@@ -175,7 +168,7 @@ Substitutes the directive with the contents of a file given by the argument.
 	.INCLUDE "c64krnl.inc"
 	
 ### .BYTE directive
-Produces one or more output bytes. The arguments are separated by comma.
+Produces one or more output bytes. The arguments are separated by a comma.
 Strings enclosed by " may also be used.
 
 	.BYTE 1
@@ -193,15 +186,15 @@ enabled. If the user wants some parts of the code to be excluded from the
 listing, the region can be surrounded by `.NOLIST` and `.LIST` statements.
 
 If listing generation is disabled when an `.INCLUDE` statement is processed,
-`.LIST` inside the include file has no effect.
+`.LIST` inside the included file has no effect.
 
-The listing generation flag is restored when the processing of an include file
+The listing generation flag is restored when the processing of an included file
 finished. If a `.NOLIST` statement is contained in an include file and the
 listing is activated for the parent file, listing generation is resumed
 after processing the include file from the line after the `.INCLUDE` line.
 
 ## Constraints
-The following constraints apply for AMS6502:
+The following constraints apply to AMS6502:
 
 ```
 Maximum identifier length: 32
@@ -215,7 +208,7 @@ Maximum include depth   :  32
 ## Instructions
 Every assembler instruction consists of a mnemonic identifying the machine
 instruction followed by at most one numeric argument including addressing
-mode specifiers. Instruction mnemonics are case insensitive. The assembler
+mode specifiers. Instruction mnemonics are case-insensitive. The assembler
 supports all MOS6502 addressing modes:
 
 ### Implicit and accumulator addressing
@@ -224,35 +217,35 @@ Either no argument or accumulator is implicitly assumed by the instruction
 	CLC ; clear carry
 	ROR ; rotate accumulator right
 
-### Immediate addressing
-The byte sized argument is encoded in the byte following the opcode. The
+### Immediate Addressing
+The byte-sized argument is encoded in the byte following the opcode. The
 argument for the assembler instruction is prefixed by # to indicate an
 immediate value.
 
-	LDA #42 ; load value 42 into accumulator
+	LDA #42 ; load value 42 into the accumulator
 
 ### Relative addressing
-Relative addressing is only used by branching instructions. The branch offset
+Relative addressing is only used by branch instructions. The branch offset
 in the range of -128 to 127 is encoded by the byte following the opcode. The
 assembler interprets the argument, which may be any numeric expression,
 relative to the current program counter.
 
 	loop: BNE loop
 
-### Absolute addressing
-A word sized address is encoded following the opcode byte. The assembler
-interpretes any word sized expression following an instruction mnemonic as an
+### Absolute Addressing
+A word-sized address is encoded following the opcode byte. The assembler
+interprets any word-sized expression following an instruction mnemonic as an
 absolute address.
 
-	LDA $4711 ; load contents of address $4711 into accumulator
+	LDA $4711 ; load contents of address $4711 into the accumulator
 
 ### Zeropage addressing
-A byte sized address is encoded following the opcode byte. The assembler
-interpretes any byte sized expression following an instruction mnemonic as a
-zeropage address.
+A byte-sized address is encoded following the opcode byte. The assembler
+interprets any byte-sized expression following an instruction mnemonic as a
+zero page address.
 
-	LDA $47   ; load contents of address $47 into accumulator
-	LDA >$4711  ; load contents of address $47 into accumulator
+	LDA $47   ; load contents of address $47 into the accumulator
+	LDA >$4711  ; load contents of address $47 into the accumulator
 
 ### Absolute X and absolute X addressing
 The address is encoded in the word following the opcode and displaced by the
@@ -261,7 +254,7 @@ contents for the X or Y register.
 	LDA $4711,X ; load contents of address $4711 displaced by X
 	LDA $4711,Y ; load contents of address $4711 displaced by Y
 
-### Zeropage X and zeropage Y addressing
+### Zeropage X and Zeropage Y addressing
 The address is encoded in the byte following the opcode and displaced by the
 contents for the X or Y register.
 
@@ -269,13 +262,12 @@ contents for the X or Y register.
 	LDX >$4711,Y  ; load contents of address $47 displaced by Y into X
 
 ### Indirect addressing
-The word sized address is stored in the memory location given by the word
-sized argument. In assembler syntax an indirect address is indicated by
+The word-sized address is stored in the memory location given by the word-sized argument. In assembler syntax, an indirect address is indicated by
 enclosing the argument in parentheses, like in the following.
 
 	JMP ($4711)
 
-The following one is a syntax error, because the assembler assumes indirect
+The following one is a syntax error because the assembler assumes indirect
 addressing mode instead of a subexpression grouped by parentheses:
 
 	JMP (2+3)*1000
@@ -300,14 +292,14 @@ page address b to calculate the address to operate on.
 
 ## Listing Files
 ASM6502 is capable of producing listing files containing the generated
-code in hexedecimal representation along the lines of the input file.
+code in hexadecimal representation along the lines of the input file.
 
 The column *FPos* indicates the position in the output file while *PC*
 indicates the address of the program counter. FPos and PC may not be in sync
-if an *.ORG* directive is used in the assembler text.
+if an *.ORG* directive is used.
 
 The listing also contains a list of global labels and variables, once sorted
-by address and once sorted by name. 2-digit hex values in symbol table
+by address and once sorted by name. 2-digit hex values in the symbol table
 indicate values of type byte. 4-digit hex values are of type word.
 
 Listing of the `helloc64.asm` file from the introduction:
@@ -344,7 +336,7 @@ Listing of the `helloc64.asm` file from the introduction:
 	001D  081C  48 45 4C ...    27:   @msg .byte "HELLO, WORLD!", CR, LF
 	                            28:   @len = @ - @msg
 	                            29: 
-	                            30: CR = 13                         ; carrige return character
+	                            30: CR = 13                         ; carriage return character
 	                            31: LF = %1010                      ; line feed character (decimal 10)
 	
 	

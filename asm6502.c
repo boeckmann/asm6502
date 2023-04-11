@@ -1,6 +1,6 @@
 /* ASM6502
  *
- * Copyright (c) 2022 Bernd Böckmann
+ * Copyright (c) 2022-2023 Bernd Böckmann
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -66,7 +66,7 @@ typedef struct pos_stack {
    char *pos;
    int line;
    u8 listing;
-   u8 listing_enabled;  
+   u8 list_statements;  
 } pos_stack;
 
 /* All files that are read during the assembly passes are stored here. */
@@ -82,11 +82,10 @@ static int pos_stk_ptr = 0;
 
 
 /* program listing data */
-static int listing_enabled = 0;   /* statement listing activated ? */
 static int listing = 0;           /* per-file listing enabled? must be true 
-                                     for listing above having any effect */
-
-static int listing_skip_one = 0;  /* suppress current statement in listing */
+                                     for the following to have any effect */
+static int list_statements = 0;   /* statement listing activated ? */
+static int list_skip_one = 0;     /* suppress current statement in listing */
 static FILE *list_file;
 
 /* data type used when evaluating expressions */
@@ -636,12 +635,14 @@ value term(char **p)
 
    skip_white(p);
    if (**p == '-') {
+      /* unary minus */
       (*p)++;
       res = product(p);
       res.v = -res.v;
       SET_TYPE(res, TYPE_WORD);
    }
    else {
+      /* unary plus */
       if(**p == '+') {
          (*p)++;
       }
@@ -1139,8 +1140,8 @@ void push_pos_stack(asm_file *f, char *pos, int line)
    pos_stk[pos_stk_ptr].pos  = pos;
    pos_stk[pos_stk_ptr].line = line;
    pos_stk[pos_stk_ptr].listing = listing;
-   pos_stk[pos_stk_ptr].listing_enabled = listing_enabled;
-   listing_enabled = listing;
+   pos_stk[pos_stk_ptr].list_statements = list_statements;
+   list_statements = listing;
    pos_stk_ptr++;
 }
 
@@ -1151,7 +1152,7 @@ void pop_pos_stack(char **p)
    *p = pos_stk[pos_stk_ptr].pos;
    line = pos_stk[pos_stk_ptr].line;
    listing = pos_stk[pos_stk_ptr].listing;
-   listing_enabled = pos_stk[pos_stk_ptr].listing_enabled;
+   list_statements = pos_stk[pos_stk_ptr].list_statements;
 }
 
 void directive_include(char **p, int pass)
@@ -1237,8 +1238,8 @@ int directive(char **p, int pass)
       listing = 0;
    }
    else if (!strcmp(id, "LIST")) {
-      listing = listing_enabled;
-      listing_skip_one = 1;
+      listing = list_statements;
+      list_skip_one = 1;
    }
    else {
       error(ERR_NODIRECTIVE);
@@ -1332,7 +1333,7 @@ void list_statement(char *statement_start, unsigned short pc_start,
 {
    int count = 0;
 
-   if (!listing || listing_skip_one) return;
+   if (!listing || list_skip_one) return;
 
    if (oc_start < oc)
       /* output program counter, but only if we emitted code */
@@ -1443,7 +1444,7 @@ void pass(char **p, int pass)
    last_file = current_file;
    line = 1;
    current_label = NULL;
-   listing = listing_enabled;
+   listing = list_statements;
 
    if (!(err = setjmp(error_jmp))) {
       while (**p || pos_stk_ptr > 0) {
@@ -1484,7 +1485,7 @@ void pass(char **p, int pass)
          skip_eol(p);
          line++;
 
-         listing_skip_one = 0;
+         list_skip_one = 0;
          last_file = current_file;
       }
    }
@@ -1517,7 +1518,7 @@ int init_listing(char *fn)
    char ts[80];
 
    list_file = fopen(fn, "wb");
-   listing_enabled = list_file != NULL;
+   list_statements = list_file != NULL;
 
    if (!list_file) return 0;
 
@@ -1536,12 +1537,19 @@ int main(int argc, char *argv[])
    char *ttext;
 
    debug = (getenv("DEBUG") != NULL);
+
+   /* check program arguments */
    if (argc < 3) {
       printf("Usage: asm6502 input output [listing]\n");
       return EXIT_SUCCESS;
    }
    if (!strcmp(argv[1], argv[2])) {
       printf("refuse to overwrite your source ;-)\n");
+      return EXIT_FAILURE;
+   }
+   if (argc == 4  && 
+      (!strcmp(argv[1], argv[3]) || !strcmp(argv[2], argv[3]))) {
+      printf("refuse to overwrite your files ;-)\n");
       return EXIT_FAILURE;
    }
 
@@ -1551,19 +1559,15 @@ int main(int argc, char *argv[])
       goto ret0;
    }
 
+   /* first assembler pass */
    ttext = current_file->text;
    pass(&ttext, 1);
    if (errors) {
       goto ret1;
    }
 
-   /*initialize listing */
    if (argc == 4) {
-      if (!strcmp(argv[1], argv[3]) || !strcmp(argv[2], argv[3])) {
-         printf("refuse to overwrite your files ;-)\n");
-         errors = 1;
-         goto ret1;
-      }
+      /*initialize listing */
       if (!init_listing(argv[3])) {
          printf("error opening listing file\n");
          errors = 1;
@@ -1572,6 +1576,7 @@ int main(int argc, char *argv[])
       printf("writing listing to %s\n", argv[3]);
    }
 
+   /* second assembler pass */
    ttext = current_file->text;
    code = malloc(oc);
    pass(&ttext, 2);

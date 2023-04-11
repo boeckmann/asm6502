@@ -1,5 +1,5 @@
 ; C64 .PRG file header and BASIC SYS command
-.nolist
+
 LOAD_ADDR = $0801
 
         .word LOAD_ADDR         ; .PRG header: load address
