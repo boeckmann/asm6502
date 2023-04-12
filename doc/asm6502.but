@@ -1,9 +1,12 @@
+\cfg{chapter}{}
 \cfg{text-chapter-numeric}{true}
 \cfg{text-chapter-suffix}{ }
  
 \title ASM6502 Assembler Manual
 
 \copyright Published by Bernd Boeckmann under BSD-3 license.
+
+\versionid \date
 
 \C{intro}Introduction
 
@@ -285,19 +288,19 @@ This one is correct (indirect addressing):
 
 \c JMP ((2+3)*1000)
 
-\S{} Indirect X and indirect Y addressing
+\S{} Indexed indirect by X and indirect indexed by Y addressing
 
-Indirect X addresses the byte referenced by the contents of the word stored at zero page address b + X. Indirect Y adds Y to the address word stored in zero page address b to calculate the address to operate on.
+Indirect indirect by X addresses the byte referenced by the contents of the word stored at zero page address b + X. Indirect indexed by Y adds Y to the address word stored in zero page address b to calculate the address to operate on.
 
 \c b = 15
 \c ORA (b,X)
 \c ORA (b),Y
 
-\C{}Instruction Reference
+\A{instruction-ref}Instruction Reference
 
-In the following instruction list, \c{#$42} is a representative for a byte-sized immediate value. This value may be substituted by any other byte-sized value. \c{$15} is a representative for a zero-page memory address and \c{$4711} is a representative for a word-sized memory address.
+In the following instruction list, \c{#$42} is a representative for a byte-sized immediate value. This value may be substituted by any other byte-sized value. \c{$15} is a representative for a zero-page memory address, and \c{$4711} is a representative for a word-sized memory address.
 
-The first hexadecimal value on a line is the instruction opcode followed by at most two bytes of additional data. The syntax of the different addressing modes is described in one of the previous chapters.
+The first hexadecimal value on a line is the instruction opcode followed by at most two bytes of additional data defined by the instruction argument. The syntax of the different addressing modes is described in one of the previous chapters.
 
 \H{adc}ADC - add with carry
 
