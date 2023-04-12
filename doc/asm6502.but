@@ -304,6 +304,8 @@ The first hexadecimal value on a line is the instruction opcode followed by at m
 
 \H{adc}ADC - add with carry
 
+Flags: N Z C V
+
 \c 69 42      adc #$42
 \c 65 15      adc $15
 \c 75 15      adc $15,x
@@ -315,6 +317,8 @@ The first hexadecimal value on a line is the instruction opcode followed by at m
 
 \H{and}AND - bit-wise and with accumulator
 
+Flags: N Z
+
 \c 29 42      and #$42
 \c 25 15      and $15
 \c 35 15      and $15,x
@@ -325,6 +329,8 @@ The first hexadecimal value on a line is the instruction opcode followed by at m
 \c 31 15      and ($15),y
 
 \H{asl}ASL - arithmetic shift left
+
+Flags: N Z C
 
 \c 0A         asl
 \c 06 15      asl $15
@@ -346,6 +352,10 @@ The first hexadecimal value on a line is the instruction opcode followed by at m
 
 \H{bit}BIT - test bits
 
+Negative flag becomes the bit 7 of the operand, overflow flag becomes bit 6 of the operand. Zero flag is set if the bit-wise and operation between the accumulator and the operand is zero, otherwise it is cleared.
+
+Flags: N Z V
+
 \c 24 15      bit $15
 \c 2C 11 47   bit $4711
 
@@ -361,7 +371,11 @@ The first hexadecimal value on a line is the instruction opcode followed by at m
 
 \c 10 FE      bpl @
 
-\H{brk}BRK - break
+\H{brk}BRK - force break
+
+BRK cannot be masked by setting interrupt disable flag. Forces the processor to continue at the address stored in the IRQ vector $FFFE. Pushes the flags with set break (B) flag to differentiate from a hardware interrupt. RTI and PLP ignore the break flag.
+
+Flags: I=1
 
 \c 00         brk
 
@@ -375,21 +389,31 @@ The first hexadecimal value on a line is the instruction opcode followed by at m
           
 \H{clc}CLC - clear carry flag
 
+Flags: C=0
+
 \c 18         clc
 
 \H{cld}CLD - clear decimal flag
+
+Flags: D=0
 
 \c D8         cld
 
 \H{cli}CLI - clear interrupt disable flag
 
+Flags: I=0
+
 \c 58         cli
 
 \H{clv}CLV - clear overflow flag
 
+Flags: V=0
+
 \c B8         clv
 
 \H{cmp}CMP - compare with accumulator
+
+Flags: N Z C
 
 \c C9 42      cmp #$42
 \c C5 15      cmp $15
@@ -402,17 +426,23 @@ The first hexadecimal value on a line is the instruction opcode followed by at m
 
 \H{cpx}CPX - compare with X register
 
+Flags: N Z C
+
 \c E0 42      cpx #$42
 \c E4 15      cpx $15
 \c EC 11 47   cpx $4711
 
 \H{cpy}CPY - compare with Y register
 
+Flags: N Z C
+
 \c C0 42      cpy #$42
 \c C4 15      cpy $15
 \c CC 11 47   cpy $4711
 
 \H{dec}DEC - decrement
+
+Flags: N Z
 
 \c C6 15      dec $15
 \c D6 15      dec $15,x
@@ -421,13 +451,19 @@ The first hexadecimal value on a line is the instruction opcode followed by at m
 
 \H{dex}DEX - decrement X register
 
+Flags: N Z
+
 \c CA         dex
 
 \H{dey}DEY - decrement Y register
 
+Flags: N Z
+
 \c 88         dey
 
 \H{eor}EOR - exclusive or
+
+Flags: N Z
 
 \c 49 42      eor #$42
 \c 45 15      eor $15
@@ -440,6 +476,8 @@ The first hexadecimal value on a line is the instruction opcode followed by at m
 
 \H{inc}INC - increment
 
+Flags: N Z
+
 \c E6 15      inc $15
 \c F6 15      inc $15,x
 \c EE 11 47   inc $4711
@@ -447,9 +485,13 @@ The first hexadecimal value on a line is the instruction opcode followed by at m
 
 \H{inx}INX - increment X register
 
+Flags: N Z
+
 \c E8         inx
 
 \H{iny}INY - increment Y register
+
+Flags: N Z
 
 \c C8         iny
 
@@ -464,6 +506,8 @@ The first hexadecimal value on a line is the instruction opcode followed by at m
 
 \H{lda}LDA - load accumulator
 
+Flags: N Z
+
 \c A9 42      lda #$42
 \c A5 15      lda $15
 \c B5 15      lda $15,x
@@ -475,6 +519,8 @@ The first hexadecimal value on a line is the instruction opcode followed by at m
 
 \H{ldx}LDX - load X register
 
+Flags: N Z
+
 \c A2 42      ldx #$42
 \c A6 15      ldx $15
 \c B6 15      ldx $15,y
@@ -483,6 +529,8 @@ The first hexadecimal value on a line is the instruction opcode followed by at m
 
 \H{ldy}LDY - load Y register
 
+Flags: N Z
+
 \c A0 42      ldy #$42
 \c A4 15      ldy $15
 \c B4 15      ldy $15,x
@@ -490,6 +538,8 @@ The first hexadecimal value on a line is the instruction opcode followed by at m
 \c BC 11 47   ldy $4711,x
 
 \H{lsr}LSR - logical shift right
+
+Flags: N=0 Z C
 
 \c 4A         lsr
 \c 46 15      lsr $15
@@ -503,6 +553,8 @@ The first hexadecimal value on a line is the instruction opcode followed by at m
 
 \H{ora}ORA - bit-wise or with accumulator
 
+Flags: N Z
+
 \c 09 42      ora #$42
 \c 05 15      ora $15
 \c 15 15      ora $15,x
@@ -512,23 +564,29 @@ The first hexadecimal value on a line is the instruction opcode followed by at m
 \c 01 15      ora ($15,x)
 \c 11 15      ora ($15),y
 
-\H{pha}PHA - push accumulator to stack
+\H{pha}PHA - push accumulator on stack
 
 \c 48         pha
 
-\H{php}PHP - push flags to stack
+\H{php}PHP - push flags on stack
 
 \c 08         php
 
 \H{pla}PLA - pop accumulator from stack
 
+Flags: N Z
+
 \c 68         pla
 
 \H{plp}PLP - pop flags from stack
 
+Flags: N Z C I D V
+
 \c 28         plp
 
 \H{rol}ROL - rotate left through carry
+
+Flags: N Z C
 
 \c 2A         rol
 \c 26 15      rol $15
@@ -538,6 +596,8 @@ The first hexadecimal value on a line is the instruction opcode followed by at m
 
 \H{ror}ROR - rotate right through carry
 
+Flags: N Z C
+
 \c 6A         ror
 \c 66 15      ror $15
 \c 76 15      ror $15,x
@@ -546,6 +606,8 @@ The first hexadecimal value on a line is the instruction opcode followed by at m
 
 \H{rti}RTI - return from interrupt
 
+Flags: N Z C I D V
+
 \c 40         rti
 
 \H{rts}RTS - return from subroutine
@@ -553,6 +615,8 @@ The first hexadecimal value on a line is the instruction opcode followed by at m
 \c 60         rts
 
 \H{sbc}SBC - subtract from accumulator with carry
+
+Flags: N Z C V
 
 \c E9 42      sbc #$42
 \c E5 15      sbc $15
@@ -565,13 +629,19 @@ The first hexadecimal value on a line is the instruction opcode followed by at m
 
 \H{sec}SEC - set carry flag
 
+Flags: C=1
+
 \c 38         sec
 
 \H{sed}SED - set decimal flag
 
+Flags: D=1
+
 \c F8         sed
 
 \H{sei}SEI - set interrupt disable flag
+
+Flags: I=1
 
 \c 78         sei
 
@@ -591,7 +661,7 @@ The first hexadecimal value on a line is the instruction opcode followed by at m
 \c 96 15      stx $15,y
 \c 8E 11 47   stx $4711
 
-\H{sty}STX - store Y register
+\H{sty}STY - store Y register
 
 \c 84 15      sty $15
 \c 94 15      sty $15,x
@@ -601,22 +671,34 @@ The first hexadecimal value on a line is the instruction opcode followed by at m
 
 \c AA         tax
 
+Flags: N Z
+
 \H{tay}TAY - transfer Y to accumulator
 
 \c A8         tay
 
+Flags: N Z
+
 \H{tsx}TSX - transfer X to stack pointer
+
+Flags: N Z
 
 \c BA         tsx
 
 \H{txa}TXA - transfer accumulator to X
 
+Flags: N Z
+
 \c 8A         txa
 
 \H{txs}TXS - transfer stack pointer to X
 
+Flags: N Z
+
 \c 9A         txs
 
 \H{tya}TYA - transfer accumulator to Y
+
+Flags: N Z
 
 \c 98         tya

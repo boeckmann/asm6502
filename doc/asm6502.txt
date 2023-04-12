@@ -386,7 +386,7 @@ Published by Bernd Boeckmann under BSD-3 license.
        displaced by the contents for the X or Y register.
 
          LDA $47,X ; load contents of address $47 displaced by X
-         LDX >$4711,Y ; get contents of addr $47 displaced by Y into X
+         LDX >$4711,Y ; get contents of address $47 displaced by Y into X
 
  3.6.8 Indirect addressing
 
@@ -413,12 +413,12 @@ Published by Bernd Boeckmann under BSD-3 license.
 
          JMP ((2+3)*1000)
 
- 3.6.9 Indirect X and indirect Y addressing
+ 3.6.9 Indexed indirect by X and indirect indexed by Y addressing
 
-       Indirect X addresses the byte referenced by the contents of the word
-       stored at zero page address b + X. Indirect Y adds Y to the address
-       word stored in zero page address b to calculate the address to
-       operate on.
+       Indirect indirect by X addresses the byte referenced by the contents
+       of the word stored at zero page address b + X. Indirect indexed
+       by Y adds Y to the address word stored in zero page address b to
+       calculate the address to operate on.
 
          b = 15
          ORA (b,X)
@@ -440,6 +440,8 @@ A Instruction Reference
 
    A.1 ADC - add with carry
 
+       Flags: N Z C V
+
          69 42      adc #$42
          65 15      adc $15
          75 15      adc $15,x
@@ -451,6 +453,8 @@ A Instruction Reference
 
    A.2 AND - bit-wise and with accumulator
 
+       Flags: N Z
+
          29 42      and #$42
          25 15      and $15
          35 15      and $15,x
@@ -461,6 +465,8 @@ A Instruction Reference
          31 15      and ($15),y
 
    A.3 ASL - arithmetic shift left
+
+       Flags: N Z C
 
          0A         asl
          06 15      asl $15
@@ -482,6 +488,13 @@ A Instruction Reference
 
    A.7 BIT - test bits
 
+       Negative flag becomes the bit 7 of the operand, overflow flag
+       becomes bit 6 of the operand. Zero flag is set if the bit-wise and
+       operation between the accumulator and the operand is zero, otherwise
+       it is cleared.
+
+       Flags: N Z V
+
          24 15      bit $15
          2C 11 47   bit $4711
 
@@ -497,7 +510,14 @@ A Instruction Reference
 
          10 FE      bpl @
 
-  A.11 BRK - break
+  A.11 BRK - force break
+
+       BRK cannot be masked by setting interrupt disable flag. Forces the
+       processor to continue at the address stored in the IRQ vector $FFFE.
+       Pushes the flags with set break (B) flag to differentiate from a
+       hardware interrupt. RTI and PLP ignore the break flag.
+
+       Flags: I=1
 
          00         brk
 
@@ -511,21 +531,31 @@ A Instruction Reference
 
   A.14 CLC - clear carry flag
 
+       Flags: C=0
+
          18         clc
 
   A.15 CLD - clear decimal flag
+
+       Flags: D=0
 
          D8         cld
 
   A.16 CLI - clear interrupt disable flag
 
+       Flags: I=0
+
          58         cli
 
   A.17 CLV - clear overflow flag
 
+       Flags: V=0
+
          B8         clv
 
   A.18 CMP - compare with accumulator
+
+       Flags: N Z C
 
          C9 42      cmp #$42
          C5 15      cmp $15
@@ -538,17 +568,23 @@ A Instruction Reference
 
   A.19 CPX - compare with X register
 
+       Flags: N Z C
+
          E0 42      cpx #$42
          E4 15      cpx $15
          EC 11 47   cpx $4711
 
   A.20 CPY - compare with Y register
 
+       Flags: N Z C
+
          C0 42      cpy #$42
          C4 15      cpy $15
          CC 11 47   cpy $4711
 
   A.21 DEC - decrement
+
+       Flags: N Z
 
          C6 15      dec $15
          D6 15      dec $15,x
@@ -557,13 +593,19 @@ A Instruction Reference
 
   A.22 DEX - decrement X register
 
+       Flags: N Z
+
          CA         dex
 
   A.23 DEY - decrement Y register
 
+       Flags: N Z
+
          88         dey
 
   A.24 EOR - exclusive or
+
+       Flags: N Z
 
          49 42      eor #$42
          45 15      eor $15
@@ -576,6 +618,8 @@ A Instruction Reference
 
   A.25 INC - increment
 
+       Flags: N Z
+
          E6 15      inc $15
          F6 15      inc $15,x
          EE 11 47   inc $4711
@@ -583,9 +627,13 @@ A Instruction Reference
 
   A.26 INX - increment X register
 
+       Flags: N Z
+
          E8         inx
 
   A.27 INY - increment Y register
+
+       Flags: N Z
 
          C8         iny
 
@@ -600,6 +648,8 @@ A Instruction Reference
 
   A.30 LDA - load accumulator
 
+       Flags: N Z
+
          A9 42      lda #$42
          A5 15      lda $15
          B5 15      lda $15,x
@@ -611,6 +661,8 @@ A Instruction Reference
 
   A.31 LDX - load X register
 
+       Flags: N Z
+
          A2 42      ldx #$42
          A6 15      ldx $15
          B6 15      ldx $15,y
@@ -619,6 +671,8 @@ A Instruction Reference
 
   A.32 LDY - load Y register
 
+       Flags: N Z
+
          A0 42      ldy #$42
          A4 15      ldy $15
          B4 15      ldy $15,x
@@ -626,6 +680,8 @@ A Instruction Reference
          BC 11 47   ldy $4711,x
 
   A.33 LSR - logical shift right
+
+       Flags: N=0 Z C
 
          4A         lsr
          46 15      lsr $15
@@ -639,6 +695,8 @@ A Instruction Reference
 
   A.35 ORA - bit-wise or with accumulator
 
+       Flags: N Z
+
          09 42      ora #$42
          05 15      ora $15
          15 15      ora $15,x
@@ -648,23 +706,29 @@ A Instruction Reference
          01 15      ora ($15,x)
          11 15      ora ($15),y
 
-  A.36 PHA - push accumulator to stack
+  A.36 PHA - push accumulator on stack
 
          48         pha
 
-  A.37 PHP - push flags to stack
+  A.37 PHP - push flags on stack
 
          08         php
 
   A.38 PLA - pop accumulator from stack
 
+       Flags: N Z
+
          68         pla
 
   A.39 PLP - pop flags from stack
 
+       Flags: N Z C I D V
+
          28         plp
 
   A.40 ROL - rotate left through carry
+
+       Flags: N Z C
 
          2A         rol
          26 15      rol $15
@@ -674,6 +738,8 @@ A Instruction Reference
 
   A.41 ROR - rotate right through carry
 
+       Flags: N Z C
+
          6A         ror
          66 15      ror $15
          76 15      ror $15,x
@@ -682,6 +748,8 @@ A Instruction Reference
 
   A.42 RTI - return from interrupt
 
+       Flags: N Z C I D V
+
          40         rti
 
   A.43 RTS - return from subroutine
@@ -689,6 +757,8 @@ A Instruction Reference
          60         rts
 
   A.44 SBC - subtract from accumulator with carry
+
+       Flags: N Z C V
 
          E9 42      sbc #$42
          E5 15      sbc $15
@@ -701,13 +771,19 @@ A Instruction Reference
 
   A.45 SEC - set carry flag
 
+       Flags: C=1
+
          38         sec
 
   A.46 SED - set decimal flag
 
+       Flags: D=1
+
          F8         sed
 
   A.47 SEI - set interrupt disable flag
+
+       Flags: I=1
 
          78         sei
 
@@ -727,7 +803,7 @@ A Instruction Reference
          96 15      stx $15,y
          8E 11 47   stx $4711
 
-  A.50 STX - store Y register
+  A.50 STY - store Y register
 
          84 15      sty $15
          94 15      sty $15,x
@@ -737,24 +813,36 @@ A Instruction Reference
 
          AA         tax
 
+       Flags: N Z
+
   A.52 TAY - transfer Y to accumulator
 
          A8         tay
 
+       Flags: N Z
+
   A.53 TSX - transfer X to stack pointer
+
+       Flags: N Z
 
          BA         tsx
 
   A.54 TXA - transfer accumulator to X
 
+       Flags: N Z
+
          8A         txa
 
   A.55 TXS - transfer stack pointer to X
+
+       Flags: N Z
 
          9A         txs
 
   A.56 TYA - transfer accumulator to Y
 
+       Flags: N Z
+
          98         tya
 
-[Mi 12 Apr 18:33:52 2023]
+[Mi 12 Apr 22:09:00 2023]
