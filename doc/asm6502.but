@@ -1,0 +1,298 @@
+\cfg{text-chapter-numeric}{true}
+\cfg{text-chapter-suffix}{ }
+ 
+\title ASM6502 Assembler Manual
+
+\copyright Published by Bernd Boeckmann under BSD-3 license.
+
+\C{intro}Introduction
+
+ASM6502 is a small 2-pass assembler for the MOS Technology 6502 microprocessor used in many home computers of the 8-bit era. It consists of under 2K lines of C code and can be built with compilers conformant to the C89 standard.
+
+ASM6502 implements some advanced features, like local labels, the ability to produce listing files, and the optimization of opcodes. In its current state, it is a usable assembler confirmed to generate the correct code for all supported instructions and addressing mode combinations. Due to the small size, two features are currently missing, namely conditional assembly and macros. The former may be implemented in the future, but the latter probably not.
+
+The assembler outputs plain binary files.
+
+The following listing contains a small sample program. It is the classic hello world for the Commodore C64. To assemble it, invoke the assembler with the source, output, and listing files as arguments:
+
+\c{asm6502 helloc64.asm helloc64.prg helloc64.lst}
+
+
+\c  1: ; C64 Hello World
+\c  2:
+\c  3: LOAD_ADDR = $0801
+\c  4:
+\c  5:       .word LOAD_ADDR
+\c  6:       .org  LOAD_ADDR
+\c  7:
+\c  8: CHROUT = $FFD2
+\c  9: SYS    = $9E
+\c 10:
+\c 11: basic_upstart:
+\c 12:       .word @end, 10
+\c 13:       .byte SYS, " 2062",0
+\c 14: @end  .word 0
+\c 15:
+\c 16: start:
+\c 17:       ldx #0
+\c 18: @l    lda hello@msg,x
+\c 19:       jsr CHROUT
+\c 20:       inx
+\c 21:       cpx #hello@len
+\c 22:       bne @l
+\c 23:       rts
+\c 24:
+\c 25: hello:
+\c 26:   @msg .byte "HELLO, WORLD!", CR, LF
+\c 27:   @len = @ - @msg
+\c 28:
+\c 29: CR = 13
+\c 30: LF = %1010
+
+\C{concepts}Concepts and Terminology
+
+The task of an assembler is to translate an \e{assembler source} containing human readable \e{instructions} to a \e{binary representation} a processor understands. This binary representation is called \e{machine code}. There is a one-to-one mapping between the human readable instructions contained in the assembler source and the generated machine code.
+
+Each instruction a processor understands is given a name, called \e{mnemonic}. This name is choosen so that it describes what the instruction does. Each instruction is also assigned a numeric value, called the operation code or \e{opcode}. This is what the processor uses to decide what to do. Beside the instruction itself, additional information may be required to process it. The additional information is typically provided in the source by one or more \e{arguments} following the mnemonic. In machine code this additional information is typically encoded in binary form following the opcode.
+
+\c{ADC #42} is an example of an instruction, where \c{ADC} is the mnemonic identifying the instruction, and \c{#42} is the argument. This particular instruction, understood by the MOS6502 processor adds the value 42 to the value stored in processor register A and writes the result back to A.
+
+The set of instructions a CPU understands is called \e{instruction set}. There are many different kinds of CPUs and instruction sets. As a result, there is not something like \q{the assembler}, but there are many of them, all adapted to one or more specific instruction sets. ASM6502 is an assembler that is adapted to the instruction set of the MOS6502 processor family.
+
+Beside generating an output file containing machine code, ASM6502 may also provide a \e{listing file} containing a \e{program listing}. This listing shows the lines of the assembler source side-by-side to the generated machine code in hexadecimal notation.
+
+\c FPos  PC    Code          Line# Assembler text
+\c 0000  0000  69 2A            1: ADC #42
+\c 0002  0002  E8               2: INX
+
+FPos indicates the position of the instructions regarding the output file. PC represents the \e{memory location} or \e{address} the code gets loaded to when executed. The executable code in memory is also called \e{image}.
+
+Let's further elaborate what the arguments to instructions may be. In the example above, \c{#42} is a numeric value that is directly used to do the addition. It is therefore called an \e{immediate} value, and the mode the processor operates in is called \e{immediate addressing} mode. The \c{INX} instruction above implicitly operates on a register called X. For this reason it is called \e{implicit addressing}. Often, the argument specifies a memory location. This memory location may be specified with the beginning of the address space as a reference. In this case it is called \e{absolute addressing} mode. If the memory location is specified relative to some other location we call it \e{relative addressing} mode. Sometimes one does not want to encode a fixed memory location into the machine instruction, but instead use the content of some memory location as the address to operate on. This is called \e{indirect addressing}.
+
+\C{syntax}Syntax and Semantics
+
+The following chapter describes the data model and the syntax accepted by the
+assembler.
+
+\H{data-types}Data Types
+
+Two data types are known to the assembler: 8-bit unsigned byte and 16-bit unsigned word. In most cases, the type of an expression is automatically determined.
+
+\H{symbols}Symbols
+
+The assembler distinguishes two types of case-sensitive symbols: \e{labels} and \e{variables}. A label stores the address of the current instruction or directive. It is defined at the beginning of a line by appending its name with a colon. The colon may be left out if the label name is not an instruction mnemonic.
+
+A variable is defined by assigning an expression to it. In the following example, hello is a label, and CHROUT is a variable.
+
+\c CHROUT = $ffd2
+\c hello:  jmp CHROUT
+
+Labels and variables may be of type byte or word. A label is of type byte if it is assigned an address within the first 256 bytes (zero page). Otherwise, it is of type word. The data type of a variable is that of the expression assigned to it, unless it is forward-referenced.
+
+Symbols may be forward-referenced. That means that they can be used in expressions before they are defined. Forward-referenced symbols are \s{always} of type word, regardless of what is assigned to them.
+
+Labels may not be redefined. If a variable is assigned a value multiple times, it must be the same value. Otherwise, it is an illegal redefinition.
+
+Symbols may be defined locally by prepending them with \c{@}. They are associated with the previous non-local label defined. They may be referenced within expressions locally by \c{@name} or with their qualified name
+\c{label@name} outside their local scope. Example:
+
+\c         jmp hello@l   ; fully qualified label reference
+\c hello:
+\c   @l    jmp @l        ; local label reference
+
+\H{expressions}Expressions
+
+There are many places where expressions may occur, for example on the right side of a variable definition or as an argument to a machine instruction. The most primitive form of an expression is a numeric constant, which can be given in decimal, hexadecimal, or binary. The value of the constant determines its type. A small value can be forced to be of type word by prepending zeros.
+
+\c 5     ; decimal byte constant
+\c $a    ; hexadecimal byte constant
+\c $4711 ; hexadecimal word constant
+\c %1011 ; binary byte constant
+\c $00a  ; hex word constant because more than 2 digits
+\c 0123  ; decimal word constant because more than 3 digits
+\c 'x'   ; byte typed ASCII character code of x
+\c -1    ; word constant $FFFF (2-complement)
+
+Arithmetic operations may be used in expressions. Operator precedence is respected, as in the following example:
+
+\c 2+3*5 ; yields value 17
+\c @ - 2 ; current program counter - 2
+	
+The supported operations are the following:
+
+\b lowest precedence: unary byte select: low byte (<) and high byte (>)
+
+\b unary and binary addition (+) and subtraction(-), bit-wise or (|), exclusive or (^)
+
+\b multiplication (*), division (/), bit-wise and(&)
+
+\b highest precedence: expressions enclosed by parentheses
+	
+Examples:
+
+\c <$4711    ; selects low byte $11
+\c >$4711    ; selects high byte $47
+\c +(x+2)*5
+
+In the last example the unary + is only needed if used as an instruction argument to distinguish from 6502 indirect addressing mode.
+
+The special symbol \c{@} evaluates to the current value of the program counter. It may not be confused with a local label, like \c{@abc}.
+
+\H{line-format}Line Format
+
+Each line may end with a comment started by a semicolon.
+
+At the beginning of a line, a label may be specified if the line does not contain a variable definition.
+
+\c start:              ; line consisting of a label
+\c loop: BNE loop.     ; label and instruction
+\c msg:  .byte "Hello" ; label followed by a directive
+
+Variables are defined by giving the variable name followed by an equal sign followed by an expression yielding a numeric value of type byte or word:
+
+\c CHROUT = $FFD2
+
+\H{directives}Directives
+
+Directives instruct the assembler to do certain things. They may or may not produce output data. Names of directives start with a dot. The directives currently known to the assembler are:
+
+\S{}.BINARY directive
+
+Copies binary data from a file to the output file. Numeric expressions specifying a start offset and a length may be given as arguments. If a length is given, the start offset must also be specified.
+
+Example:
+
+ \c .BINARY "SPRITE.DAT".         ; copies the whole file
+ \c .BINARY "SPRITE.DAT", $10     ; skip the first 16 bytes
+ \c .BINARY "SPRITE.DAT", $10, 64 ; copy 64 bytes from offset 16
+
+\S{}.BYTE directive
+
+Produces one or more output bytes. The arguments are separated by a comma. Strings enclosed by " may also be used.
+
+Example:
+
+\c .BYTE 1
+\c .BYTE 47, 11
+\c .BYTE "Hello, World", 13, 10
+
+\S{}.FILL directive
+
+Starting from the current position of the output file, emits as many bytes as given by the first argument. If the second argument is given, the region is filled with its byte-sized value. Otherwise, it is filled with zero. The program counter is increased accordingly.
+
+Example:
+
+\c .FILL 100       ; fill 100 bytes with zero
+\c .FILL 16, $EA   ; insert 16 NOPs ($EA) into the code
+
+\S{}.INCLUDE directive
+
+Substitutes the directive with the contents of a file given by the argument.
+
+Example:
+
+\c .INCLUDE "c64krnl.inc"
+
+\S{}.LIST and .NOLIST
+
+If a listing file is given via command line, listing generation is initially enabled. If the user wants some parts of the code to be excluded from the listing, the region can be surrounded by \c{.NOLIST} and \c{.LIST} statements.
+
+If listing generation is disabled when an \c{.INCLUDE} statement is processed, \c{.LIST} inside the included file has no effect.
+
+The listing generation flag is restored when the processing of an included file finished. If a \c{.NOLIST} statement is contained in an include file and the listing is activated for the parent file, listing generation is resumed after processing the include file from the line after the \c{.INCLUDE} line.
+
+\S{}.ORG directive
+
+Sets the current program counter to the numeric value of the argument. Does not modify the offset into the output file. This means that .ORG can not be used to \q{jump around} in the output file.
+
+Example:
+
+\c .ORG $0801
+
+\S{}.WORD directive
+
+Produces one or more output words.
+
+Example:
+
+\c .WORD $0801, 4711
+
+\H{addressing-modes}Addressing Modes
+
+Every assembler instruction consists of a mnemonic identifying the machine instruction followed by at most one numeric argument including addressing mode specifiers. Instruction mnemonics are case-insensitive. The assembler supports all MOS6502 addressing modes:
+
+\S{}Implicit and accumulator addressing
+
+Either no argument or accumulator is implicitly assumed by the instruction
+
+\c CLC ; clear carry
+\c ROR ; rotate accumulator right
+
+\S{}Immediate Addressing
+
+The byte-sized argument is encoded in the byte following the opcode. The argument for the assembler instruction is prefixed by # to indicate an immediate value.
+
+\c LDA #42 ; load value 42 into the accumulator
+
+\S{}Relative addressing
+
+Relative addressing is only used by branch instructions. The branch offset in the range of -128 to 127 is encoded by the byte following the opcode. The assembler interprets the argument, which may be any numeric expression, relative to the current program counter.
+
+\c loop: BNE loop
+
+\S{}Absolute Addressing
+
+A word-sized address is encoded following the opcode byte. The assembler interprets any word-sized expression following an instruction mnemonic as an absolute address.
+
+\c LDA $4711 ; load contents of address $4711 into the accumulator
+
+\S{}Zero-page addressing
+
+A byte-sized address is encoded following the opcode byte. The assembler interprets any byte-sized expression following an instruction mnemonic as a zero page address.
+
+\c LDA $47   ; load contents of address $47 into the accumulator
+\c LDA >$4711  ; load contents of address $47 into the accumulator
+
+\S{}Absolute X and absolute X addressing
+
+The address is encoded in the word following the opcode and displaced by the contents for the X or Y register.
+
+\c LDA $4711,X ; load contents of address $4711 displaced by X
+\c LDA $4711,Y ; load contents of address $4711 displaced by Y
+
+\S{}Zero-page X and Zero-page Y addressing
+
+The address is encoded in the byte following the opcode and displaced by the contents for the X or Y register.
+
+\c LDA $47,X ; load contents of address $47 displaced by X
+\c LDX >$4711,Y ; get contents of address $47 displaced by Y into X
+
+\S{}Indirect addressing
+
+The word-sized address is stored in the memory location given by the word-sized argument. In assembler syntax, an indirect address is indicated by enclosing the argument in parentheses, like in the following.
+
+\c JMP ($4711)
+
+The following one is a syntax error because the assembler assumes indirect addressing mode instead of a sub-expression grouped by parentheses:
+
+\c JMP (2+3)*1000
+
+If one wants to start an expression with an opening parentheses, while not indicating indirect addressing to the assembler, one can write:
+
+\c JMP +(2+3)*1000
+
+This one is correct (indirect addressing):
+
+\c JMP ((2+3)*1000)
+
+\S{} Indirect X and indirect Y addressing
+
+Indirect X addresses the byte referenced by the contents of the word stored at zero page address b + X. Indirect Y adds Y to the address word stored in zero page address b to calculate the address to operate on.
+
+\c b = 15
+\c ORA (b,X)
+\c ORA (b),Y
+
+\C{}Instruction Reference
+
+TODO! In the meantime see one of the plenty 6502 instruction references found on the net.
