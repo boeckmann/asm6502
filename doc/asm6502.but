@@ -53,13 +53,13 @@ The following listing contains a small sample program. It is the classic hello w
 
 The task of an assembler is to translate an \e{assembler source} containing human readable \e{instructions} to a \e{binary representation} a processor understands. This binary representation is called \e{machine code}. There is a one-to-one mapping between the human readable instructions contained in the assembler source and the generated machine code.
 
-Each instruction a processor understands is given a name, called \e{mnemonic}. This name is choosen so that it describes what the instruction does. Each instruction is also assigned a numeric value, called the operation code or \e{opcode}. This is what the processor uses to decide what to do. Beside the instruction itself, additional information may be required to process it. The additional information is typically provided in the source by one or more \e{arguments} following the mnemonic. In machine code this additional information is typically encoded in binary form following the opcode.
+Each instruction a processor understands is given a name, called \e{mnemonic}. This name is choosen so that it describes what the instruction does. Each instruction is also assigned a numeric value, called the operation code or \e{opcode}. This is what the processor uses to decide what to do. Beside the instruction itself, additional information may be required to process it. The additional information is provided in the source by one or more \e{arguments} following the mnemonic. In machine code this additional information is encoded in binary form following the opcode.
 
-\c{ADC #42} is an example of an instruction, where \c{ADC} is the mnemonic identifying the instruction, and \c{#42} is the argument. This particular instruction, understood by the MOS6502 processor adds the value 42 to the value stored in processor register A and writes the result back to A.
+\c{ADC #42} is an example of an instruction, where \c{ADC} is the mnemonic identifying the instruction, and \c{#42} is the argument. This particular instruction, understood by the MOS6502 processor adds the value 42 to the value stored in processor register A. It then writes the result back to A.
 
 The set of instructions a CPU understands is called \e{instruction set}. There are many different kinds of CPUs and instruction sets. As a result, there is not something like \q{the assembler}, but there are many of them, all adapted to one or more specific instruction sets. ASM6502 is an assembler that is adapted to the instruction set of the MOS6502 processor family.
 
-Beside generating an output file containing machine code, ASM6502 may also provide a \e{listing file} containing a \e{program listing}. This listing shows the lines of the assembler source side-by-side to the generated machine code in hexadecimal notation.
+Beside generating an output file containing machine code, ASM6502 may also generate a \e{listing file} containing a \e{program listing}. This listing shows the lines of the assembler source side-by-side to the generated machine code in hexadecimal notation.
 
 \c FPos  PC    Code          Line# Assembler text
 \c 0000  0000  69 2A            1: ADC #42
@@ -230,7 +230,7 @@ Either no argument or accumulator is implicitly assumed by the instruction
 
 \S{}Immediate Addressing
 
-The byte-sized argument is encoded in the byte following the opcode. The argument for the assembler instruction is prefixed by # to indicate an immediate value.
+The byte-sized argument is encoded in the byte following the opcode. The argument for the assembler instruction is prefixed by # to indicate an immediate value. The argument may be any expression yielding a byte-sized numeric value.
 
 \c LDA #42 ; load value 42 into the accumulator
 
@@ -295,4 +295,325 @@ Indirect X addresses the byte referenced by the contents of the word stored at z
 
 \C{}Instruction Reference
 
-TODO! In the meantime see one of the plenty 6502 instruction references found on the net.
+In the following instruction list, \c{#$42} is a representative for a byte-sized immediate value. This value may be substituted by any other byte-sized value. \c{$15} is a representative for a zero-page memory address and \c{$4711} is a representative for a word-sized memory address.
+
+The first hexadecimal value on a line is the instruction opcode followed by at most two bytes of additional data. The syntax of the different addressing modes is described in one of the previous chapters.
+
+\H{adc}ADC - add with carry
+
+\c 69 42      adc #$42
+\c 65 15      adc $15
+\c 75 15      adc $15,x
+\c 6D 11 47   adc $4711
+\c 7D 11 47   adc $4711,x
+\c 79 11 47   adc $4711,y
+\c 61 15      adc ($15,x)
+\c 71 15      adc ($15),y
+
+\H{and}AND - bit-wise and with accumulator
+
+\c 29 42      and #$42
+\c 25 15      and $15
+\c 35 15      and $15,x
+\c 2D 11 47   and $4711
+\c 3D 11 47   and $4711,x
+\c 39 11 47   and $4711,y
+\c 21 15      and ($15,x)
+\c 31 15      and ($15),y
+
+\H{asl}ASL - arithmetic shift left
+
+\c 0A         asl
+\c 06 15      asl $15
+\c 16 15      asl $15,x
+\c 0E 11 47   asl $4711
+\c 1E 11 47   asl $4711,x
+
+\H{bcc}BCC - branch if carry cleared
+
+\c 90 FE      bcc @
+
+\H{bcs}BCS - branch if carry set
+
+\c B0 FE      bcs @
+
+\H{beq}BEQ - branch if equal
+
+\c F0 FE      beq @
+
+\H{bit}BIT - test bits
+
+\c 24 15      bit $15
+\c 2C 11 47   bit $4711
+
+\H{bmi}BMI - branch if negative
+
+\c 30 FE      bmi @
+
+\H{bne}BNE - branch if not equal
+
+\c D0 FE      bne @
+
+\H{bpl}BPL - branch if positive
+
+\c 10 FE      bpl @
+
+\H{brk}BRK - break
+
+\c 00         brk
+
+\H{bvc}BVC - branch if overflow flag cleared
+
+\c 50 FE      bvc @
+
+\H{bvs}BVS - branch if overflow flag set
+
+\c 70 FE      bvs @
+          
+\H{clc}CLC - clear carry flag
+
+\c 18         clc
+
+\H{cld}CLD - clear decimal flag
+
+\c D8         cld
+
+\H{cli}CLI - clear interrupt disable flag
+
+\c 58         cli
+
+\H{clv}CLV - clear overflow flag
+
+\c B8         clv
+
+\H{cmp}CMP - compare with accumulator
+
+\c C9 42      cmp #$42
+\c C5 15      cmp $15
+\c D5 15      cmp $15,x
+\c CD 11 47   cmp $4711
+\c DD 11 47   cmp $4711,x
+\c D9 11 47   cmp $4711,y
+\c C1 15      cmp ($15,x)
+\c D1 15      cmp ($15),y
+
+\H{cpx}CPX - compare with X register
+
+\c E0 42      cpx #$42
+\c E4 15      cpx $15
+\c EC 11 47   cpx $4711
+
+\H{cpy}CPY - compare with Y register
+
+\c C0 42      cpy #$42
+\c C4 15      cpy $15
+\c CC 11 47   cpy $4711
+
+\H{dec}DEC - decrement
+
+\c C6 15      dec $15
+\c D6 15      dec $15,x
+\c CE 11 47   dec $4711
+\c DE 11 47   dec $4711,x
+
+\H{dex}DEX - decrement X register
+
+\c CA         dex
+
+\H{dey}DEY - decrement Y register
+
+\c 88         dey
+
+\H{eor}EOR - exclusive or
+
+\c 49 42      eor #$42
+\c 45 15      eor $15
+\c 55 15      eor $15,x
+\c 4D 11 47   eor $4711
+\c 5D 11 47   eor $4711,x
+\c 59 11 47   eor $4711,y
+\c 41 15      eor ($15,x)
+\c 51 15      eor ($15),y
+
+\H{inc}INC - increment
+
+\c E6 15      inc $15
+\c F6 15      inc $15,x
+\c EE 11 47   inc $4711
+\c FE 11 47   inc $4711,x
+
+\H{inx}INX - increment X register
+
+\c E8         inx
+
+\H{iny}INY - increment Y register
+
+\c C8         iny
+
+\H{jmp}JMP - jump
+
+\c 4C 11 47   jmp $4711
+\c 6C 11 47   jmp ($4711)
+
+\H{jsr}JSR - call subroutine
+
+\c 20 11 47   jsr $4711
+
+\H{lda}LDA - load accumulator
+
+\c A9 42      lda #$42
+\c A5 15      lda $15
+\c B5 15      lda $15,x
+\c AD 11 47   lda $4711
+\c BD 11 47   lda $4711,x
+\c 59 11 47   eor $4711,y
+\c A1 15      lda ($15,x)
+\c B1 15      lda ($15),y
+
+\H{ldx}LDX - load X register
+
+\c A2 42      ldx #$42
+\c A6 15      ldx $15
+\c B6 15      ldx $15,y
+\c AE 11 47   ldx $4711
+\c BE 11 47   ldx $4711,y
+
+\H{ldy}LDY - load Y register
+
+\c A0 42      ldy #$42
+\c A4 15      ldy $15
+\c B4 15      ldy $15,x
+\c AC 11 47   ldy $4711
+\c BC 11 47   ldy $4711,x
+
+\H{lsr}LSR - logical shift right
+
+\c 4A         lsr
+\c 46 15      lsr $15
+\c 56 15      lsr $15,x
+\c 4E 11 47   lsr $4711
+\c 5E 11 47   lsr $4711,x
+
+\H{nop}NOP - no-operation
+
+\c EA         nop
+
+\H{ora}ORA - bit-wise or with accumulator
+
+\c 09 42      ora #$42
+\c 05 15      ora $15
+\c 15 15      ora $15,x
+\c 0D 11 47   ora $4711
+\c 1D 11 47   ora $4711,x
+\c 19 11 47   ora $4711,y
+\c 01 15      ora ($15,x)
+\c 11 15      ora ($15),y
+
+\H{pha}PHA - push accumulator to stack
+
+\c 48         pha
+
+\H{php}PHP - push flags to stack
+
+\c 08         php
+
+\H{pla}PLA - pop accumulator from stack
+
+\c 68         pla
+
+\H{plp}PLP - pop flags from stack
+
+\c 28         plp
+
+\H{rol}ROL - rotate left through carry
+
+\c 2A         rol
+\c 26 15      rol $15
+\c 36 15      rol $15,x
+\c 2E 11 47   rol $4711
+\c 3E 11 47   rol $4711,x
+
+\H{ror}ROR - rotate right through carry
+
+\c 6A         ror
+\c 66 15      ror $15
+\c 76 15      ror $15,x
+\c 6E 11 47   ror $4711
+\c 7E 11 47   ror $4711,x
+
+\H{rti}RTI - return from interrupt
+
+\c 40         rti
+
+\H{rts}RTS - return from subroutine
+
+\c 60         rts
+
+\H{sbc}SBC - subtract from accumulator with carry
+
+\c E9 42      sbc #$42
+\c E5 15      sbc $15
+\c F5 15      sbc $15,x
+\c ED 11 47   sbc $4711
+\c FD 11 47   sbc $4711,x
+\c F9 11 47   sbc $4711,y
+\c E1 15      sbc ($15,x)
+\c F1 15      sbc ($15),y
+
+\H{sec}SEC - set carry flag
+
+\c 38         sec
+
+\H{sed}SED - set decimal flag
+
+\c F8         sed
+
+\H{sei}SEI - set interrupt disable flag
+
+\c 78         sei
+
+\H{sta}STA - store accumulator
+
+\c 85 15      sta $15
+\c 95 15      sta $15,x
+\c 8D 11 47   sta $4711
+\c 9D 11 47   sta $4711,x
+\c 99 11 47   sta $4711,y
+\c 81 15      sta ($15,x)
+\c 91 15      sta ($15),y
+
+\H{stx}STX - store X register
+
+\c 86 15      stx $15
+\c 96 15      stx $15,y
+\c 8E 11 47   stx $4711
+
+\H{sty}STX - store Y register
+
+\c 84 15      sty $15
+\c 94 15      sty $15,x
+\c 8C 11 47   sty $4711
+
+\H{tax}TAX - transfer X to accumulator
+
+\c AA         tax
+
+\H{tay}TAY - transfer Y to accumulator
+
+\c A8         tay
+
+\H{tsx}TSX - transfer X to stack pointer
+
+\c BA         tsx
+
+\H{txa}TXA - transfer accumulator to X
+
+\c 8A         txa
+
+\H{txs}TXS - transfer stack pointer to X
+
+\c 9A         txs
+
+\H{tya}TYA - transfer accumulator to Y
+
+\c 98         tya
