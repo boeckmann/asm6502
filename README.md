@@ -299,8 +299,8 @@ indicates the address of the program counter. FPos and PC may not be in sync
 if an *.ORG* directive is used.
 
 The listing also contains a list of global labels and variables, once sorted
-by address and once sorted by name. 2-digit hex values in the symbol table
-indicate values of type byte. 4-digit hex values are of type word.
+by address and once sorted by name. Two-digit hex values in the symbol table
+are of type byte. Four-digit hex values are of type word.
 
 Listing of the `helloc64.asm` file from the introduction:
 
@@ -319,9 +319,9 @@ Listing of the `helloc64.asm` file from the introduction:
 	                            10: SYS    = $9E                    ; basic SYS token number
 	                            11: 
 	                            12: basic_upstart:                  ; BASIC code: 10 SYS 2062
-	0002  0801  0C 08 0A        13:         .word @end, 10          ; ptr to next basic line and line 	number 10
-	0006  0805  9E 20 32 ...    14:         .byte SYS, " 2062",0    ; SYS token and address string of 	subroutine
-	000D  080C  00 00           15: @end    .word 0                 ; null ptr to indicate end of basic 	text
+	0002  0801  0C 08 0A        13:         .word @end, 10          ; ptr to next basic line and line number 10
+	0006  0805  9E 20 32 ...    14:         .byte SYS, " 2062",0    ; SYS token and address string of subroutine
+	000D  080C  00 00           15: @end    .word 0                 ; null ptr to indicate end of basic text
 	                            16: 
 	                            17: start:                          ; this is at address 2062 ($080E)
 	000F  080E  A2 00           18:         ldx #0

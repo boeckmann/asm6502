@@ -36,7 +36,6 @@
 #define MAX_FILES     64   /* maximum include files */
 #define MAX_POS_STACK 32   
 
-
 #ifdef __BORLANDC__
 #pragma warn -sig
 #endif
@@ -82,6 +81,7 @@ typedef struct pos_stack {
 static asm_file asm_files[MAX_FILES];
 static int asm_file_count = 0;
 static asm_file *current_file;             /* currently processed file */
+static char filename_buf[STR_LEN];
 
 /* position stack is used when processing include files. Every time an
    include file is about to be processed, the position after the include
@@ -315,7 +315,7 @@ char *err_msg[] = {
    "string expected",
    "can not read file",
    "maximum file stack size exceeded",
-   "byte sized value expected"
+   "byte sized value expected",
 };
 
 #define ERROR_NORM 1
@@ -445,6 +445,11 @@ void skip_curr_and_white(char **p)
    }
 }
 
+int first_number(char c)
+{
+   return c == '$' || c == '%' || isdigit(c);
+}
+
 value number(char **p)
 {
    value num= {0,0};
@@ -554,7 +559,7 @@ value primary(char **p)
       res.v = 0;
       res.t = 0;
    }
-   else if (**p == '@' && isalnum(*(*p+1))) {  /* local label*/
+   else if (**p == LOCAL_LABEL_LETTER && isalnum(*(*p+1))) {  /* local label*/
       (*p)++;
       nident(p, id);
       sym = lookup(id, current_label->locals);
@@ -1075,6 +1080,18 @@ void directive_word(char **p, int pass)
    while (next);
 }
 
+FILE * open_file(const char *fn, const char *mode)
+{
+   FILE *f;
+
+   f = fopen(fn, mode);
+   if (f) return f;
+
+   /* TODO: search in different paths for file to open */
+
+   return NULL;
+}
+
 static long file_size(FILE *f)
 {
    long pos, size;
@@ -1113,7 +1130,7 @@ static asm_file * read_file(const char *fn)
    if (file >= asm_files + MAX_FILES) return NULL;
 
    /* read file contents */
-   f = fopen(fn, "rb");
+   f = open_file(fn, "rb");
    if (!f) return NULL;
    size = file_size(f);
    buf = malloc(size + 1);
@@ -1164,21 +1181,20 @@ void pop_pos_stack(char **p)
 
 void directive_include(char **p, int pass)
 {
-   char fn[STR_LEN];
    asm_file *file;
    (void)pass;
 
    /* read filename */
    skip_white(p);
-   string_lit(p, fn, STR_LEN);
+   string_lit(p, filename_buf, STR_LEN);
    skip_white_and_comment(p);
    if (!IS_END(**p)) error(ERR_EOL);
    skip_eol(p);
 
 
    /* read the include file */
-   file = read_file(fn);
-   if (!file) error_ext(ERR_OPEN, fn);
+   file = read_file(filename_buf);
+   if (!file) error_ext(ERR_OPEN, filename_buf);
 
    /* push current file and position to stk and set pointers to inc file */
    push_pos_stack(current_file, *p, line + 1);
@@ -1215,6 +1231,54 @@ void directive_fill(char **p, int pass)
    oc += count.v;
 }
 
+void directive_binary(char **p, int pass)
+{
+   /* syntax: .binary "file"[,skip[,count]] */
+   FILE *file;
+   unsigned long size;
+   value skip, count;
+
+   /* read filename */
+   skip_white(p);
+   string_lit(p, filename_buf, STR_LEN);
+   skip_white_and_comment(p);
+
+   file = open_file(filename_buf, "rb");
+   if (!file) error(ERR_OPEN);
+   size = file_size(file);
+
+   skip_white(p);
+   if (**p == ',') {
+      skip_curr_and_white(p);
+      if (first_number(**p)) skip = expr(p);
+      skip_white(p);
+      if (**p == ',') {
+         skip_curr_and_white(p);
+         count = expr(p);
+      }
+      else count.v = size;
+   }
+   else skip.v = 0;
+
+   if (skip.v > size) {
+      fclose(file);
+      return;
+   }
+   if (skip.v + count.v > size) {
+      count.v = size - skip.v;
+   }
+
+   if (pass == 2) {
+      fseek(file, skip.v, SEEK_SET);
+      fread(code+oc, count.v, 1, file);
+   }
+
+   pc += count.v;
+   oc += count.v;
+
+   fclose(file);
+}
+
 int directive(char **p, int pass)
 {
    char id[ID_LEN];
@@ -1240,6 +1304,9 @@ int directive(char **p, int pass)
    else if (!strcmp(id, "INCLUDE")) {
       directive_include(p, pass);
       again = 1;
+   }
+   else if (!strcmp(id, "BINARY")) {
+      directive_binary(p, pass);
    }
    else if (!strcmp(id, "NOLIST")) {
       listing = 0;
