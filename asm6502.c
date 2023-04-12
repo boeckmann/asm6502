@@ -315,7 +315,7 @@ char *err_msg[] = {
    "string expected",
    "can not read file",
    "maximum file stack size exceeded",
-   "byte sized value expected",
+   "byte sized value expected"
 };
 
 #define ERROR_NORM 1
@@ -443,11 +443,6 @@ void skip_curr_and_white(char **p)
    while ((**p == ' ') || (**p == '\t')) {
       (*p)++;
    }
-}
-
-int first_number(char c)
-{
-   return c == '$' || c == '%' || isdigit(c);
 }
 
 value number(char **p)
@@ -1250,7 +1245,7 @@ void directive_binary(char **p, int pass)
    skip_white(p);
    if (**p == ',') {
       skip_curr_and_white(p);
-      if (first_number(**p)) skip = expr(p);
+      skip = expr(p);
       skip_white(p);
       if (**p == ',') {
          skip_curr_and_white(p);
