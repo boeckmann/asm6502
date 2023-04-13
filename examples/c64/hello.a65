@@ -1,0 +1,21 @@
+; C64 Hello World
+; assemble to .PRG file: asm6502 hello.i65 hello.prg hello.lst
+
+.include "c64prg.i65"           ; generates basic-upstart
+
+CHROUT = $FFD2                  ; kernal output function address
+
+        ldx #0
+@l      lda hello@msg,x
+        jsr CHROUT
+        inx
+        cpx #hello@len
+        bne @l
+        rts
+
+hello:
+  @msg .byte "HELLO, WORLD!", CR, LF
+  @len = @ - @msg
+
+CR = 13                         ; carrige return character
+LF = %1010                      ; line feed character as binary number

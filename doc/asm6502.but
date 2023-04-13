@@ -95,9 +95,9 @@ Input files should have \c{.A65} as extension to distinguish it from files writt
 
 Two data types are known to the assembler:
 
-\b 8-bit \e{byte} storing numbers of value of 0..255.
+\b 8-bit \e{byte} storing numbers of value 0 to 255.
 
-\b 16-bit \e{word} storing positive numbers of value 0..65535. Negative numbers are stored in two-complement representation with range -32768..32767.
+\b 16-bit \e{word} storing positive numbers of value 0 to 65535 inclusive. Negative numbers are stored in two-complement representation with range -32768 to 32767 inclusive.
 
 \H{symbols}Symbols
 
@@ -110,9 +110,9 @@ A variable is defined by assigning an expression to it. In the following example
 
 Labels and variables may be of type byte or word. A label is of type byte if it is assigned an address within the first 256 bytes (zero page). Otherwise, it is of type word. The data type of a variable is that of the expression assigned to it, unless it is forward-referenced.
 
-Symbols may be forward-referenced. That means that they can be used in expressions before they are defined. Forward-referenced symbols are \e{always} of type word, regardless of what is assigned to them.
+Forward-referenced means that a symbol can be used in expressions before it is defined. Forward-referenced symbols are \e{always} of type word, regardless of what is assigned to them.
 
-Labels may not be redefined. If a variable is assigned a value multiple times, it must be the same value. Otherwise, it is an illegal redefinition.
+Labels may not be redefined. If a variable is assigned a value multiple times, it must always be the same value. Otherwise, it is an illegal redefinition.
 
 Symbols may be defined locally by prepending them with \c{@}. They are associated with the previous non-local label defined. They may be referenced within expressions locally by \c{@name} or with their qualified name
 \c{label@name} outside their local scope. Example:
