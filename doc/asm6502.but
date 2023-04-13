@@ -10,7 +10,7 @@
 
 \C{intro}Introduction
 
-ASM6502 is a small 2-pass assembler for the MOS Technology 6502 microprocessor used in many home computers of the 8-bit era. It consists of under 2K lines of C code and can be built with compilers conformant to the C89 standard.
+ASM6502 is a small two-pass assembler for the MOS Technology 6502 microprocessor used in many home computers of the 8-bit era. It consists of under 2K lines of C code and can be built with compilers conformant to the C89 standard.
 
 ASM6502 implements some advanced features, like local labels, the ability to produce listing files, and the optimization of opcodes. In its current state, it is a usable assembler confirmed to generate the correct code for all supported instructions and addressing mode combinations. Due to the small size, two features are currently missing, namely conditional assembly and macros. The former may be implemented in the future, but the latter probably not.
 
@@ -18,7 +18,7 @@ The assembler outputs plain binary files.
 
 The following listing contains a small sample program. It is the classic hello world for the Commodore C64. To assemble it, invoke the assembler with the source, output, and listing files as arguments:
 
-\c{asm6502 helloc64.asm helloc64.prg helloc64.lst}
+\c{asm6502 helloc64.a65 helloc64.prg helloc64.lst}
 
 
 \c  1: ; C64 Hello World
@@ -72,14 +72,32 @@ FPos indicates the position of the instructions regarding the output file. PC re
 
 Let's further elaborate what the arguments to instructions may be. In the example above, \c{#42} is a numeric value that is directly used to do the addition. It is therefore called an \e{immediate} value, and the mode the processor operates in is called \e{immediate addressing} mode. The \c{INX} instruction above implicitly operates on a register called X. For this reason it is called \e{implicit addressing}. Often, the argument specifies a memory location. This memory location may be specified with the beginning of the address space as a reference. In this case it is called \e{absolute addressing} mode. If the memory location is specified relative to some other location we call it \e{relative addressing} mode. Sometimes one does not want to encode a fixed memory location into the machine instruction, but instead use the content of some memory location as the address to operate on. This is called \e{indirect addressing}.
 
+The sequence of instructions executed by the processor may be altered by the programmer utilizing special machine instructions. Some of these instructions modify this sequence unconditionally, and some alter it if a special condition is met. The instructions are called \e{jump} or \e{branching} instructions. The information of the \e{jump target} is encoded as address within the instruction. The assembler supports the programmer by letting him specify a jump target by giving it a name, called \e{label}. In the introductory example, \c{basic_upstart}, \c{start}, and \c{hello} are labels.
+
+One task of an assembler is to assign an address to every label the programmer defines. Sometimes this is not that easy. For example, a label may be used as a jump target before it is defined in the assembler source. This is called \e{forward-reference}. That is the reason ASM6502 is a so called two-pass assembler. In the first pass, the assembler processes the whole file to determine the addresses of all labels. In the second pass all required information is provided, and the machine code is generated.
+
+Using forward-references can sometimes lead to non-optimal machine code, because the assembler has to guess the size of the forward-referenced \q{thing}. In that case the programmer can support the assembler by giving a hint what type the referenced \q{thing} is. Some \e{multi-pass assemblers} process the source more than two times and can optimize the machine code even in cases they encounter forward-referenced labels. But for the sake of simplicity ASM6502 does not do that.
+
+Beside labels the programmer may also define \e{variables}. Variables may be assigned any kind of mathematical expression. Variables and labels are also called \e{symbols}, and the name identifying them is referred to as \e{identifier}.
+
+Character sequences which by itself provide a value to the assembler, like the character sequence \c{42}, which represents the numeric value 42, are considered to be \e{literals}.
+
 \C{syntax}Syntax and Semantics
 
 The following chapter describes the data model and the syntax accepted by the
 assembler.
 
+\H{input-files}Input Files
+
+Input files should have \c{.A65} as extension to distinguish it from files written for other assemblers.  Include-files should have \c{.I65} as extension. The files should be encoded in the ASCII or UTF-8 character sets.
+
 \H{data-types}Data Types
 
-Two data types are known to the assembler: 8-bit unsigned byte and 16-bit unsigned word. In most cases, the type of an expression is automatically determined.
+Two data types are known to the assembler:
+
+\b 8-bit \e{byte} storing numbers of value of 0..255.
+
+\b 16-bit \e{word} storing positive numbers of value 0..65535. Negative numbers are stored in two-complement representation with range -32768..32767.
 
 \H{symbols}Symbols
 
@@ -92,7 +110,7 @@ A variable is defined by assigning an expression to it. In the following example
 
 Labels and variables may be of type byte or word. A label is of type byte if it is assigned an address within the first 256 bytes (zero page). Otherwise, it is of type word. The data type of a variable is that of the expression assigned to it, unless it is forward-referenced.
 
-Symbols may be forward-referenced. That means that they can be used in expressions before they are defined. Forward-referenced symbols are \s{always} of type word, regardless of what is assigned to them.
+Symbols may be forward-referenced. That means that they can be used in expressions before they are defined. Forward-referenced symbols are \e{always} of type word, regardless of what is assigned to them.
 
 Labels may not be redefined. If a variable is assigned a value multiple times, it must be the same value. Otherwise, it is an illegal redefinition.
 
@@ -190,7 +208,7 @@ Example:
 
 \S{}.INCLUDE directive
 
-Substitutes the directive with the contents of a file given by the argument.
+Substitutes the directive with the contents of a file given by the argument. As a convention the extension of  include-files should be \c{.i65}.
 
 Example:
 
