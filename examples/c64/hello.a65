@@ -1,5 +1,5 @@
 ; C64 Hello World
-; assemble to .PRG file: asm6502 hello.i65 hello.prg hello.lst
+; assemble to .PRG file: asm6502 hello.a65 hello.prg hello.lst
 
 .include "c64prg.i65"           ; generates basic-upstart
 
