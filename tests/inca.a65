@@ -2,7 +2,7 @@ XXX = 12
       lda XXX
       lda YYY
 a:	inx
-.include "incb.asm"
-.include "incb.asm"
+.include "incb.a65"
+.include "incb.a65"
 x:
 YYY = 12
