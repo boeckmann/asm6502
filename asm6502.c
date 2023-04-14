@@ -40,6 +40,8 @@
 #pragma warn -sig
 #endif
 
+#define _CRT_SECURE_NO_WARNINGS /* Visual Studio */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -148,6 +150,93 @@ static symbol *current_label = NULL;   /* search scope for local labels */
 #define INFERE_TYPE(a,b) (((a).v >= 0x100) || ((b).v >= 0x100)) ? \
           SET_TYPE((a), TYPE_WORD) : SET_TYPE((a), MAXINT(TYPE(a),(TYPE(b))))
 
+#define ERR_NUM         1
+#define ERR_UNBALANCED  2
+#define ERR_ID          3
+#define ERR_IDLEN       4
+#define ERR_STMT        5
+#define ERR_EOL         6
+#define ERR_REDEF       7
+#define ERR_INSTR       8
+#define ERR_AM          9
+#define ERR_LBLREDEF    10
+#define ERR_CLBR        11
+#define ERR_INX         12
+#define ERR_INY         13
+#define ERR_ILLAM       14
+#define ERR_OPUNDEFT    15
+#define ERR_NODIRECTIVE 16
+#define ERR_UNDEF       17
+#define ERR_ILLTYPE     18
+#define ERR_RELRNG      19
+#define ERR_STREND      20
+#define ERR_BYTERNG     21
+#define ERR_LOCAL_REDEF 22
+#define ERR_NO_GLOBAL   23
+#define ERR_CHR         24
+#define ERR_STRLEN      25
+#define ERR_STR         26
+#define ERR_OPEN        27
+#define ERR_MAXINC      28
+#define ERR_NO_BYTE     29
+#define ERR_NO_MEM      30
+
+char* err_msg[] = {
+   "",
+   "value expected",
+   "unbalanced parentheses",
+   "identifier expected",
+   "identifier length exceeded",
+   "illegal statement",
+   "end of line expected",
+   "illegal redefinition",
+   "unknown instruction mnemonic",
+   "invalid addressing mode for instruction",
+   "symbol already defined as label",
+   "missing closing brace",
+   "malformed indirect X addressing",
+   "malformed indirect Y addressing",
+   "malformed addressing mode",
+   "undefined operand size",
+   "unknown directive",
+   "undefined value",
+   "illegal type",
+   "relative jump target out of range",
+   "string not terminated",
+   "byte value out of range",
+   "illegal redefinition of local label",
+   "no scope for local definition",
+   "malformed character constant",
+   "string too long",
+   "string expected",
+   "can not read file",
+   "maximum file stack size exceeded",
+   "byte sized value expected",
+   "insufficient memory"
+};
+
+#define ERROR_NORM 1
+#define ERROR_EXT  2 /* extended error with additional message */
+
+static char error_hint[128];
+static int errors = 0;
+static int error_type = 0;
+
+jmp_buf error_jmp;
+void error(int err)
+{
+    errors++;
+    error_type = ERROR_NORM;
+    longjmp(error_jmp, err);
+}
+
+void error_ext(int err, const char* msg)
+{
+    errors++;
+    error_type = ERROR_EXT;
+    strncpy(error_hint, msg, sizeof(error_hint) - 1);
+    longjmp(error_jmp, err);
+}
 
 symbol *lookup(const char *name, symbol *start)
 {
@@ -162,6 +251,10 @@ symbol *lookup(const char *name, symbol *start)
 symbol * new_symbol(const char *name)
 {
    symbol *sym = malloc(sizeof(symbol));
+   if (!sym) {
+      error(ERR_NO_MEM);
+      return NULL;
+   }
    strcpy(sym->name, name);
    sym->value.v = 0;
    sym->value.t = 0;
@@ -253,91 +346,6 @@ void dump_symbols(void)
          }
       }
    }
-}
-
-#define ERR_NUM         1
-#define ERR_UNBALANCED  2
-#define ERR_ID          3
-#define ERR_IDLEN       4
-#define ERR_STMT        5
-#define ERR_EOL         6
-#define ERR_REDEF       7
-#define ERR_INSTR       8
-#define ERR_AM          9
-#define ERR_LBLREDEF    10
-#define ERR_CLBR        11
-#define ERR_INX         12
-#define ERR_INY         13
-#define ERR_ILLAM       14
-#define ERR_OPUNDEFT    15
-#define ERR_NODIRECTIVE 16
-#define ERR_UNDEF       17
-#define ERR_ILLTYPE     18
-#define ERR_RELRNG      19
-#define ERR_STREND      20
-#define ERR_BYTERNG     21
-#define ERR_LOCAL_REDEF 22
-#define ERR_NO_GLOBAL   23
-#define ERR_CHR         24
-#define ERR_STRLEN      25
-#define ERR_STR         26
-#define ERR_OPEN        27
-#define ERR_MAXINC      28
-#define ERR_NO_BYTE     29
-
-char *err_msg[] = {
-   "",
-   "value expected",
-   "unbalanced parentheses",
-   "identifier expected",
-   "identifier length exceeded",
-   "illegal statement",
-   "end of line expected",
-   "illegal redefinition",
-   "unknown instruction mnemonic",
-   "invalid addressing mode for instruction",
-   "symbol already defined as label",
-   "missing closing brace",
-   "malformed indirect X addressing",
-   "malformed indirect Y addressing",
-   "malformed addressing mode",
-   "undefined operand size",
-   "unknown directive",
-   "undefined value",
-   "illegal type",
-   "relative jump target out of range",
-   "string not terminated",
-   "byte value out of range",
-   "illegal redefinition of local label",
-   "no scope for local definition",
-   "malformed character constant",
-   "string too long",
-   "string expected",
-   "can not read file",
-   "maximum file stack size exceeded",
-   "byte sized value expected"
-};
-
-#define ERROR_NORM 1
-#define ERROR_EXT  2 /* extended error with additional message */
-static char error_hint[128];
-static int errors = 0;
-static int error_type = 0;
-
-jmp_buf error_jmp;
-void error(int err)
-{
-   errors++;
-   error_type = ERROR_NORM;
-   longjmp(error_jmp, err);
-}
-
-void error_ext(int err, const char *msg)
-{
-   errors++;
-   error_type = ERROR_EXT;
-   strncpy(error_hint, msg, sizeof(error_hint)-1);
-   longjmp(error_jmp, err);
 }
 
 symbol * define_label(const char *id, u16 v, symbol *parent)
@@ -955,7 +963,10 @@ void instruction(char **p, int pass)
    /* first get instruction for given mnemonic */
    ident_upcase(p, id);
    instr = getidesc(id);
-   if (!instr) error(ERR_INSTR);
+   if (!instr) {
+      error(ERR_INSTR);
+      return; /* to make VS code checker happy */
+   }
 
    /* if found get addressing mode */
    skip_white_and_comment(p);
@@ -991,7 +1002,10 @@ void instruction(char **p, int pass)
    }
 
    /* update program counter */
-   if (am == AM_INV) error(ERR_AM);
+   if (am == AM_INV) {
+      error(ERR_AM);
+      return;
+   }
    pc += am_size[am];
 }
 
@@ -1002,7 +1016,7 @@ int string_lit(char **p, char *buf, int bufsize)
    if (**p != '"') error (ERR_STR);
    (*p)++;
    while (**p != '"') {
-      if (bufsize && *p - start >= bufsize - 1) error(ERR_STRLEN);
+      if (bufsize && *p - start + 1 >= bufsize) error(ERR_STRLEN);
       if (IS_END(**p)) error(ERR_STREND);
       if (buf) *(buf++) = **p;
       (*p)++;
@@ -1102,6 +1116,10 @@ static long file_size(FILE *f)
 static char * str_copy(const char *src)
 {
    char *dst = malloc(strlen(src)+1);
+   if (!dst) {
+      error(ERR_NO_MEM);
+      return NULL; /* to make VS code checker happy */
+   }
    strcpy(dst, src);
    return dst;
 }
@@ -1128,7 +1146,7 @@ static asm_file * read_file(const char *fn)
    f = open_file(fn, "rb");
    if (!f) return NULL;
    size = file_size(f);
-   buf = malloc(size + 1);
+   buf = malloc((size_t)size + 1);
    if (!buf) return NULL;
    fread(buf, 1, size, f);
    buf[size] = '\0';
@@ -1144,8 +1162,9 @@ static asm_file * read_file(const char *fn)
 
 static void free_files(void)
 {
-   asm_file *file;
-   for (file = asm_files; file < asm_files + asm_file_count; file++) {
+   asm_file *file = asm_files;
+
+   for (; file < asm_files + asm_file_count; file++) {
       free(file->filename);
       free(file->text);
    }   
@@ -1153,7 +1172,10 @@ static void free_files(void)
 
 void push_pos_stack(asm_file *f, char *pos, int line)
 {
-   if (pos_stk_ptr >= MAX_POS_STACK) error(ERR_MAXINC);
+   if (pos_stk_ptr >= MAX_POS_STACK) {
+      error(ERR_MAXINC);
+      return;
+   }
 
    pos_stk[pos_stk_ptr].file = f;
    pos_stk[pos_stk_ptr].pos  = pos;
@@ -1183,13 +1205,19 @@ void directive_include(char **p, int pass)
    skip_white(p);
    string_lit(p, filename_buf, STR_LEN);
    skip_white_and_comment(p);
-   if (!IS_END(**p)) error(ERR_EOL);
+   if (!IS_END(**p)) {
+      error(ERR_EOL);
+      return;
+   }
    skip_eol(p);
 
 
    /* read the include file */
    file = read_file(filename_buf);
-   if (!file) error_ext(ERR_OPEN, filename_buf);
+   if (!file) {
+      error_ext(ERR_OPEN, filename_buf);
+      return;
+   }
 
    /* push current file and position to stk and set pointers to inc file */
    push_pos_stack(current_file, *p, line + 1);
@@ -1231,7 +1259,7 @@ void directive_binary(char **p, int pass)
    /* syntax: .binary "file"[,skip[,count]] */
    FILE *file;
    unsigned long size;
-   value skip, count;
+   value skip, count = {0};
 
    /* read filename */
    skip_white(p);
@@ -1239,8 +1267,12 @@ void directive_binary(char **p, int pass)
    skip_white_and_comment(p);
 
    file = open_file(filename_buf, "rb");
-   if (!file) error(ERR_OPEN);
+   if (!file) {
+      error(ERR_OPEN);
+      return; /* to make VS code checker happy */
+   }
    size = file_size(file);
+   count.v = (unsigned short)size;
 
    skip_white(p);
    if (**p == ',') {
@@ -1251,7 +1283,6 @@ void directive_binary(char **p, int pass)
          skip_curr_and_white(p);
          count = expr(p);
       }
-      else count.v = size;
    }
    else skip.v = 0;
 
@@ -1259,8 +1290,8 @@ void directive_binary(char **p, int pass)
       fclose(file);
       return;
    }
-   if (skip.v + count.v > size) {
-      count.v = size - skip.v;
+   if (skip.v + count.v > (unsigned short)size) {
+      count.v = (unsigned short)size - skip.v;
    }
 
    if (pass == 2) {
@@ -1450,15 +1481,14 @@ void list_symbols(void)
 {
    symbol *sym;
    symbol **sym_array, **sym_p;
-   int count = 0, i;
+   int i;
 
-   sym_array = sym_p = malloc(sizeof(symbol *) * (symbol_count + 1));
+   sym_array = sym_p = malloc(sizeof(symbol *) * ((size_t)symbol_count + 1));
    if (!sym_array) return;
    
    for (sym = symbols; sym; sym = sym->next) {
       /* convert linked list to array */
       *sym_p++ = sym;
-      count++;
    }
    *sym_p = NULL;
 
@@ -1467,11 +1497,11 @@ void list_symbols(void)
    
       if (i == 1) {
          fprintf(list_file, "\n\n<<< SYMBOLS BY NAME >>>\n\n");
-         qsort(sym_array, count, sizeof(symbol *), sym_cmp_name);
+         qsort(sym_array, symbol_count, sizeof(symbol *), sym_cmp_name);
       }
       else {
          fprintf(list_file, "\n\n<<< SYMBOLS BY VALUE >>>\n\n");
-         qsort(sym_array, count, sizeof(symbol *), sym_cmp_val);
+         qsort(sym_array, symbol_count, sizeof(symbol *), sym_cmp_val);
       }
    
       fprintf(list_file, "   HEX    DEC   NAME\n");
