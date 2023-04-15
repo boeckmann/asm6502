@@ -48,12 +48,19 @@
 #include <ctype.h>
 #include <setjmp.h>
 #include <time.h>
+
+#if __STDC_VERSION__ >= 201112L
+#include <stdnoreturn.h>
+#else
+#define noreturn
+#endif
+
 #include "asm6502.h"
 
 static int debug = 0;      /* set DEBUG env variable to enable debug output */      
 
-static char *code = NULL;  /* holds the emitted code */
-static int line;           /* currently processed line number */
+static unsigned char *code = NULL;  /* holds the emitted code */
+static int line;                    /* currently processed line number */
 
 /* program counter and output counter may not be in sync */
 /* this happens if an .org directive is used, which modifies the */
@@ -75,8 +82,8 @@ typedef struct pos_stack {
    asm_file *file;
    char *pos;
    int line;
-   u8 listing;
-   u8 list_statements;  
+   char listing;
+   char list_statements;  
 } pos_stack;
 
 /* All files that are read during the assembly passes are stored here. */
@@ -123,7 +130,6 @@ typedef struct symbol {
 #define KIND_LBL  1
 #define KIND_VAR  2
 
-
 static symbol *symbols = NULL;         /* global symbol table */
 static int symbol_count = 0;       /* number of global symbols */
 static symbol *current_label = NULL;   /* search scope for local labels */
@@ -131,7 +137,6 @@ static symbol *current_label = NULL;   /* search scope for local labels */
 /* symbol specific preprocessor directives */
 #define IS_LBL(x) (((x).kind & KIND_LBL) != 0)
 #define IS_VAR(x) (((x).kind & KIND_VAR) != 0)
-#define KIND_DEFINED(x) ((x) != 0)
 
 /* value specific preprocessor directives */
 #define VALUE_DEFINED 0x40
@@ -150,68 +155,59 @@ static symbol *current_label = NULL;   /* search scope for local labels */
 #define INFERE_TYPE(a,b) (((a).v >= 0x100) || ((b).v >= 0x100)) ? \
           SET_TYPE((a), TYPE_WORD) : SET_TYPE((a), MAXINT(TYPE(a),(TYPE(b))))
 
-#define ERR_NUM         1
-#define ERR_UNBALANCED  2
-#define ERR_ID          3
-#define ERR_IDLEN       4
-#define ERR_STMT        5
-#define ERR_EOL         6
-#define ERR_REDEF       7
-#define ERR_INSTR       8
-#define ERR_AM          9
-#define ERR_LBLREDEF    10
-#define ERR_CLBR        11
-#define ERR_INX         12
-#define ERR_INY         13
-#define ERR_ILLAM       14
-#define ERR_OPUNDEFT    15
-#define ERR_NODIRECTIVE 16
-#define ERR_UNDEF       17
-#define ERR_ILLTYPE     18
-#define ERR_RELRNG      19
-#define ERR_STREND      20
-#define ERR_BYTERNG     21
-#define ERR_LOCAL_REDEF 22
-#define ERR_NO_GLOBAL   23
-#define ERR_CHR         24
-#define ERR_STRLEN      25
-#define ERR_STR         26
-#define ERR_OPEN        27
-#define ERR_MAXINC      28
-#define ERR_NO_BYTE     29
-#define ERR_NO_MEM      30
-
-char* err_msg[] = {
+static char* err_msg[] = {
    "",
+#define ERR_NUM         1
    "value expected",
+#define ERR_UNBALANCED  2
    "unbalanced parentheses",
+#define ERR_ID          3
    "identifier expected",
+#define ERR_IDLEN       4
    "identifier length exceeded",
+#define ERR_STMT        5
    "illegal statement",
+#define ERR_EOL         6
    "end of line expected",
+#define ERR_REDEF       7
    "illegal redefinition",
+#define ERR_INSTR       8
    "unknown instruction mnemonic",
+#define ERR_AM          9
    "invalid addressing mode for instruction",
-   "symbol already defined as label",
+#define ERR_CLBR        10
    "missing closing brace",
+#define ERR_INX         11
    "malformed indirect X addressing",
+#define ERR_INY         12
    "malformed indirect Y addressing",
-   "malformed addressing mode",
-   "undefined operand size",
+#define ERR_NODIRECTIVE 13
    "unknown directive",
+#define ERR_UNDEF       14
    "undefined value",
+#define ERR_ILLTYPE     15
    "illegal type",
+#define ERR_RELRNG      16
    "relative jump target out of range",
+#define ERR_STREND      17
    "string not terminated",
+#define ERR_BYTERNG     18
    "byte value out of range",
-   "illegal redefinition of local label",
+#define ERR_NO_GLOBAL   19
    "no scope for local definition",
+#define ERR_CHR         20
    "malformed character constant",
+#define ERR_STRLEN      21
    "string too long",
+#define ERR_STR         22
    "string expected",
+#define ERR_OPEN        23
    "can not read file",
+#define ERR_MAXINC      24
    "maximum file stack size exceeded",
+#define ERR_NO_BYTE     25
    "byte sized value expected",
+#define ERR_NO_MEM      26
    "insufficient memory"
 };
 
@@ -223,22 +219,23 @@ static int errors = 0;
 static int error_type = 0;
 
 jmp_buf error_jmp;
-void error(int err)
+
+noreturn static void error(int err)
 {
-    errors++;
-    error_type = ERROR_NORM;
-    longjmp(error_jmp, err);
+   errors++;
+   error_type = ERROR_NORM;
+   longjmp(error_jmp, err);
 }
 
-void error_ext(int err, const char* msg)
+noreturn static void error_ext(int err, const char* msg)
 {
-    errors++;
-    error_type = ERROR_EXT;
-    strncpy(error_hint, msg, sizeof(error_hint) - 1);
-    longjmp(error_jmp, err);
+   errors++;
+   error_type = ERROR_EXT;
+   strncpy(error_hint, msg, sizeof(error_hint) - 1);
+   longjmp(error_jmp, err);
 }
 
-symbol *lookup(const char *name, symbol *start)
+static symbol *lookup(const char *name, symbol *start)
 {
    symbol *table = start;
    while (table) {
@@ -248,13 +245,11 @@ symbol *lookup(const char *name, symbol *start)
    return NULL;
 }
 
-symbol * new_symbol(const char *name)
+static symbol * new_symbol(const char *name)
 {
    symbol *sym = malloc(sizeof(symbol));
-   if (!sym) {
-      error(ERR_NO_MEM);
-      return NULL;
-   }
+   if (!sym) error(ERR_NO_MEM);
+
    strcpy(sym->name, name);
    sym->value.v = 0;
    sym->value.t = 0;
@@ -264,7 +259,7 @@ symbol * new_symbol(const char *name)
    return sym;   
 }
 
-void free_symbols(symbol **sym)
+static void free_symbols(symbol **sym)
 {
    symbol *curr, *next;
    curr = *sym;
@@ -279,7 +274,7 @@ void free_symbols(symbol **sym)
    *sym = NULL;
 }
 
-symbol *aquire(const char *name)
+static symbol *aquire(const char *name)
 {
    symbol *sym = lookup(name, symbols);
    if (!sym) {
@@ -291,7 +286,7 @@ symbol *aquire(const char *name)
    return sym;
 }
 
-symbol *aquire_local(const char *name, symbol *parent)
+static symbol *aquire_local(const char *name, symbol *parent)
 {
    symbol *sym;
    if (!parent) return NULL;
@@ -304,7 +299,7 @@ symbol *aquire_local(const char *name, symbol *parent)
    return sym;
 }
 
-char sym_kind_to_char(u8 kind)
+static char sym_kind_to_char(u8 kind)
 {
    switch (kind) {
       case KIND_LBL:
@@ -315,7 +310,8 @@ char sym_kind_to_char(u8 kind)
    return '-';
 }
 
-char sym_type_to_char(u8 typ)
+#if 0
+static char sym_type_to_char(u8 typ)
 {
    if ((typ & 0x3f) == 0) return 'U';
    switch (typ & 0x3f) {
@@ -327,7 +323,7 @@ char sym_type_to_char(u8 typ)
    return '?';
 }
 
-void dump_symbols(void)
+static void dump_symbols(void)
 {
    symbol *sym = symbols;
    symbol *locals;
@@ -347,8 +343,9 @@ void dump_symbols(void)
       }
    }
 }
+#endif
 
-symbol * define_label(const char *id, u16 v, symbol *parent)
+static symbol * define_label(const char *id, u16 v, symbol *parent)
 {
    symbol *sym;
    if (parent) sym = aquire_local(id, parent);
@@ -365,7 +362,7 @@ symbol * define_label(const char *id, u16 v, symbol *parent)
    return sym;
 }
 
-symbol * reserve_label(const char *id, symbol *parent)
+static symbol * reserve_label(const char *id, symbol *parent)
 {
    symbol *sym;
    if (parent) sym = aquire_local(id, parent);
@@ -378,7 +375,7 @@ symbol * reserve_label(const char *id, symbol *parent)
    return sym;
 }
 
-void define_variable(const char *id, const value v, symbol *parent)
+static void define_variable(const char *id, const value v, symbol *parent)
 {
    symbol *sym;
    if (parent) sym = aquire_local(id, parent);
@@ -400,7 +397,7 @@ void define_variable(const char *id, const value v, symbol *parent)
    sym->kind = KIND_VAR;
 }
 
-value to_byte(value v)
+static value to_byte(value v)
 {
    if (DEFINED(v) && (v.v > 0xff)) error(ERR_BYTERNG);
    SET_TYPE(v, TYPE_BYTE);
@@ -410,33 +407,27 @@ value to_byte(value v)
 #define IS_HEXDIGIT(x) (isdigit((x)) || (((x) >= 'a') && ((x) <= 'f')) || \
                        (((x) >= 'A') && ((x) <= 'F')))
 
-u16 digit(const char *p)
+static u16 digit(const char *p)
 {
    if (*p <= '9') return (u16)(*p - '0');
    if (*p <= 'F') return (u16)(*p + 10 - 'A');
    return (u16)(*p + 10 - 'a');
 }
 
-#define IS_EOL(p) (((p) == 0x0a) || ((p) == 0x0d))
 #define IS_END(p) (((!(p)) || (p) == 0x0a) || ((p) == 0x0d))
 
-void skip_eol(char **p)
+static void skip_eol(char **p)
 {
    if (**p == 0x0d) (*p)++;
    if (**p == 0x0a) (*p)++;
 }
 
-void skip_white(char **p)
+static void skip_white(char **p)
 {
    while ((**p == ' ') || (**p == '\t')) (*p)++;
 }
 
-void skipl(char **p)
-{
-   while (!IS_END(**p)) (*p)++;
-}
-
-void skip_white_and_comment(char **p)
+static void skip_white_and_comment(char **p)
 {
    while ((**p == ' ') || (**p == '\t')) (*p)++;
    if (**p == ';') {
@@ -445,7 +436,7 @@ void skip_white_and_comment(char **p)
    }
 }
 
-void skip_curr_and_white(char **p)
+static void skip_curr_and_white(char **p)
 {
    (*p)++;
    while ((**p == ' ') || (**p == '\t')) {
@@ -453,7 +444,7 @@ void skip_curr_and_white(char **p)
    }
 }
 
-value number(char **p)
+static value number(char **p)
 {
    value num= {0,0};
    char *pt = *p;
@@ -496,7 +487,7 @@ value number(char **p)
    return num;
 }
 
-void _ident(char **p, char *id, int numeric)
+static void _ident(char **p, char *id, int numeric)
 {
    int i=0;
 
@@ -514,19 +505,19 @@ void _ident(char **p, char *id, int numeric)
 }
 
 /* read identifier which may not start with a digit */
-void ident(char **p, char *id)
+static void ident(char **p, char *id)
 {
    _ident(p, id, 0);
 }
 
 /* read identifier which may start with a digit */
-void nident(char **p, char *id)
+static void nident(char **p, char *id)
 {
    _ident(p, id, 1);
 }
 
 /* read identifier and convert to upper case */
-void ident_upcase(char **p, char *id)
+static void ident_upcase(char **p, char *id)
 {
    int i=0;
 
@@ -541,9 +532,9 @@ void ident_upcase(char **p, char *id)
    *id = '\0';
 }
 
-value expr(char**);
+static value expr(char**);
 
-value primary(char **p)
+static value primary(char **p)
 {
    value res;
    char id[ID_LEN];
@@ -611,7 +602,7 @@ value primary(char **p)
    return res;
 }
 
-value product(char **p)
+static value product(char **p)
 {
    value  n2, res;
    char op;
@@ -643,7 +634,7 @@ value product(char **p)
    return res;
 }
 
-value term(char **p)
+static value term(char **p)
 {
    value n2, res;
    char op;
@@ -691,7 +682,7 @@ value term(char **p)
    return res;
 }
 
-value expr(char **p)
+static value expr(char **p)
 {
    value v;
 
@@ -717,12 +708,12 @@ value expr(char **p)
    return v;
 }
 
-void upcase(char *p)
+static void upcase(char *p)
 {
    for (; *p; p++) *p = (char)toupper(*p);
 }
 
-idesc *getidesc(const char *p)
+static idesc *getidesc(const char *p)
 {
    int i;
    for (i=0; i < (int)(sizeof(itbl)/sizeof(idesc)); i++) {
@@ -731,7 +722,7 @@ idesc *getidesc(const char *p)
    return NULL;
 }
 
-void emit_byte(u8 b, int pass)
+static void emit_byte(u8 b, int pass)
 {
    if (pass == 2) {
       code[oc] = b;
@@ -739,7 +730,7 @@ void emit_byte(u8 b, int pass)
    oc+=1;
 }
 
-void emit(const char *p, u16 len, int pass)
+static void emit(const char *p, u16 len, int pass)
 {
    u16 i=0;
 
@@ -751,7 +742,7 @@ void emit(const char *p, u16 len, int pass)
    oc+=len;
 }
 
-void emit_word(u16 w, int pass)
+static void emit_word(u16 w, int pass)
 {
    if (pass == 2) {
       code[oc] = w & 0xff;
@@ -761,7 +752,7 @@ void emit_word(u16 w, int pass)
 }
 
 /* emit instruction without argument */
-void emit_instr_0(idesc *instr, int am, int pass)
+static void emit_instr_0(idesc *instr, int am, int pass)
 {
    if (pass == 2) {
       code[oc] = instr->op[am];
@@ -770,7 +761,7 @@ void emit_instr_0(idesc *instr, int am, int pass)
 }
 
 /* emit instruction with byte argument */
-void emit_instr_1(idesc *instr, int am, u8 o, int pass)
+static void emit_instr_1(idesc *instr, int am, u8 o, int pass)
 {
    if (pass == 2) {
       code[oc] = instr->op[am];
@@ -780,7 +771,7 @@ void emit_instr_1(idesc *instr, int am, u8 o, int pass)
 }
 
 /* emit instruction with word argument */
-void emit_instr_2(idesc *instr, int am, u16 o, int pass)
+static void emit_instr_2(idesc *instr, int am, u16 o, int pass)
 {
    if (pass == 2) {
       code[oc] = instr->op[am];
@@ -790,7 +781,7 @@ void emit_instr_2(idesc *instr, int am, u16 o, int pass)
    oc+=3;
 }
 
-int instruction_imp_acc(int pass, idesc *instr)
+static int instruction_imp_acc(int pass, idesc *instr)
 {
    int am = AM_INV;
 
@@ -803,7 +794,7 @@ int instruction_imp_acc(int pass, idesc *instr)
    return am;
 }
 
-int instruction_imm(char **p, int pass, idesc *instr)
+static int instruction_imm(char **p, int pass, idesc *instr)
 {
    int am = AM_IMM;
    value v;
@@ -818,7 +809,7 @@ int instruction_imm(char **p, int pass, idesc *instr)
    return am;
 }
 
-int instruction_rel(int pass, idesc *instr, value v)
+static int instruction_rel(int pass, idesc *instr, value v)
 {
    int am = AM_REL;
    u16 pct = pc + 2u;
@@ -841,7 +832,7 @@ int instruction_rel(int pass, idesc *instr, value v)
 }
 
 /* handle indirect addressing modes */
-int instruction_ind(char **p, int pass, idesc *instr)
+static int instruction_ind(char **p, int pass, idesc *instr)
 {
    char id[ID_LEN];
    int am = AM_INV;
@@ -895,7 +886,7 @@ int instruction_ind(char **p, int pass, idesc *instr)
 }
 
 /* handle absolute x and y, zeropage x and y addressing modes */
-int instruction_abxy_zpxy(char **p, int pass, idesc *instr, value v)
+static int instruction_abxy_zpxy(char **p, int pass, idesc *instr, value v)
 {
    char id[ID_LEN];
    int am = AM_INV;
@@ -930,7 +921,7 @@ int instruction_abxy_zpxy(char **p, int pass, idesc *instr, value v)
 }
 
 /* handle absolute and zeropage addressing modes */
-int instruction_abs_zp(int pass, idesc *instr, value v)
+static int instruction_abs_zp(int pass, idesc *instr, value v)
 {
    int am = AM_INV;
 
@@ -953,7 +944,7 @@ int instruction_abs_zp(int pass, idesc *instr, value v)
 }
 
 /* process one instruction */
-void instruction(char **p, int pass)
+static void instruction(char **p, int pass)
 {
    char id[ID_LEN];
    idesc *instr;
@@ -963,10 +954,7 @@ void instruction(char **p, int pass)
    /* first get instruction for given mnemonic */
    ident_upcase(p, id);
    instr = getidesc(id);
-   if (!instr) {
-      error(ERR_INSTR);
-      return; /* to make VS code checker happy */
-   }
+   if (!instr) error(ERR_INSTR);
 
    /* if found get addressing mode */
    skip_white_and_comment(p);
@@ -1002,14 +990,12 @@ void instruction(char **p, int pass)
    }
 
    /* update program counter */
-   if (am == AM_INV) {
-      error(ERR_AM);
-      return;
-   }
+   if (am == AM_INV) error(ERR_AM);
+ 
    pc += am_size[am];
 }
 
-int string_lit(char **p, char *buf, int bufsize)
+static int string_lit(char **p, char *buf, int bufsize)
 {
    char *start = *p;
 
@@ -1026,7 +1012,7 @@ int string_lit(char **p, char *buf, int bufsize)
    return (int)(*p - start - 2);
 }
 
-void directive_byte(char **p, int pass)
+static void directive_byte(char **p, int pass)
 {
    value v;
    int next, len;
@@ -1063,7 +1049,7 @@ void directive_byte(char **p, int pass)
    while (next);
 }
 
-void directive_word(char **p, int pass)
+static void directive_word(char **p, int pass)
 {
    value v;
    int next;
@@ -1089,7 +1075,7 @@ void directive_word(char **p, int pass)
    while (next);
 }
 
-FILE * open_file(const char *fn, const char *mode)
+static FILE * open_file(const char *fn, const char *mode)
 {
    FILE *f;
 
@@ -1116,10 +1102,8 @@ static long file_size(FILE *f)
 static char * str_copy(const char *src)
 {
    char *dst = malloc(strlen(src)+1);
-   if (!dst) {
-      error(ERR_NO_MEM);
-      return NULL; /* to make VS code checker happy */
-   }
+   if (!dst) error(ERR_NO_MEM);
+
    strcpy(dst, src);
    return dst;
 }
@@ -1170,23 +1154,20 @@ static void free_files(void)
    }   
 }
 
-void push_pos_stack(asm_file *f, char *pos, int line)
+static void push_pos_stack(asm_file *f, char *pos, int l)
 {
-   if (pos_stk_ptr >= MAX_POS_STACK) {
-      error(ERR_MAXINC);
-      return;
-   }
+   if (pos_stk_ptr >= MAX_POS_STACK) error(ERR_MAXINC);
 
    pos_stk[pos_stk_ptr].file = f;
    pos_stk[pos_stk_ptr].pos  = pos;
-   pos_stk[pos_stk_ptr].line = line;
-   pos_stk[pos_stk_ptr].listing = listing;
-   pos_stk[pos_stk_ptr].list_statements = list_statements;
+   pos_stk[pos_stk_ptr].line = l;
+   pos_stk[pos_stk_ptr].listing = (char)listing;
+   pos_stk[pos_stk_ptr].list_statements = (char)list_statements;
    list_statements = listing;
    pos_stk_ptr++;
 }
 
-void pop_pos_stack(char **p)
+static void pop_pos_stack(char **p)
 {
    pos_stk_ptr--; 
    current_file = pos_stk[pos_stk_ptr].file;
@@ -1196,7 +1177,7 @@ void pop_pos_stack(char **p)
    list_statements = pos_stk[pos_stk_ptr].list_statements;
 }
 
-void directive_include(char **p, int pass)
+static void directive_include(char **p, int pass)
 {
    asm_file *file;
    (void)pass;
@@ -1205,19 +1186,14 @@ void directive_include(char **p, int pass)
    skip_white(p);
    string_lit(p, filename_buf, STR_LEN);
    skip_white_and_comment(p);
-   if (!IS_END(**p)) {
-      error(ERR_EOL);
-      return;
-   }
+   if (!IS_END(**p)) error(ERR_EOL);
+
    skip_eol(p);
 
 
    /* read the include file */
    file = read_file(filename_buf);
-   if (!file) {
-      error_ext(ERR_OPEN, filename_buf);
-      return;
-   }
+   if (!file) error_ext(ERR_OPEN, filename_buf);
 
    /* push current file and position to stk and set pointers to inc file */
    push_pos_stack(current_file, *p, line + 1);
@@ -1227,7 +1203,7 @@ void directive_include(char **p, int pass)
    line = 1;
 }
 
-void directive_fill(char **p, int pass)
+static void directive_fill(char **p, int pass)
 {
    value count, filler;
 
@@ -1254,7 +1230,7 @@ void directive_fill(char **p, int pass)
    oc += count.v;
 }
 
-void directive_binary(char **p, int pass)
+static void directive_binary(char **p, int pass)
 {
    /* syntax: .binary "file"[,skip[,count]] */
    FILE *file;
@@ -1267,10 +1243,8 @@ void directive_binary(char **p, int pass)
    skip_white_and_comment(p);
 
    file = open_file(filename_buf, "rb");
-   if (!file) {
-      error(ERR_OPEN);
-      return; /* to make VS code checker happy */
-   }
+   if (!file) error(ERR_OPEN);
+
    size = file_size(file);
    count.v = (unsigned short)size;
 
@@ -1305,7 +1279,7 @@ void directive_binary(char **p, int pass)
    fclose(file);
 }
 
-int directive(char **p, int pass)
+static int directive(char **p, int pass)
 {
    char id[ID_LEN];
    value v;
@@ -1348,10 +1322,10 @@ int directive(char **p, int pass)
    return again;
 }
 
-int ismnemonic(const char *id)
+static int ismnemonic(const char *id)
 {
    char id1[ID_LEN];
-   int i;
+   size_t i;
    
    strcpy(id1, id);
    upcase(id1);
@@ -1363,13 +1337,13 @@ int ismnemonic(const char *id)
 }
 
 /* processes one statement or assembler instruction */
-int statement(char **p, int pass)
+static int statement(char **p, int pass)
 {
    char id1[ID_LEN];
    value v1;
    char *pt;
    int again = 0;
-   enum { GLOBAL_LABEL=1, LOCAL_LABEL=2 } label = 0;
+   enum { NONE=0, GLOBAL_LABEL=1, LOCAL_LABEL=2 } label = NONE;
 
    skip_white_and_comment(p);
    if (IS_END(**p)) return again;
@@ -1428,8 +1402,8 @@ int statement(char **p, int pass)
    return again;
 }
 
-void list_statement(char *statement_start, unsigned short pc_start,
-                    unsigned short oc_start, char *p)
+static void list_statement(char *statement_start, unsigned short pc_start,
+                           unsigned short oc_start, char *p)
 {
    int count = 0;
 
@@ -1459,7 +1433,7 @@ void list_statement(char *statement_start, unsigned short pc_start,
    fputs("\n", list_file);
 }
 
-int sym_cmp_name(const void *a, const void *b)
+static int sym_cmp_name(const void *a, const void *b)
 {
    const symbol *sa, *sb;
    sa = *(const symbol **)a;
@@ -1468,7 +1442,7 @@ int sym_cmp_name(const void *a, const void *b)
    return strcmp(sa->name, sb->name);
 }
 
-int sym_cmp_val(const void *a, const void *b)
+static int sym_cmp_val(const void *a, const void *b)
 {
    const symbol *sa, *sb;
    sa = *(const symbol **)a;
@@ -1477,7 +1451,7 @@ int sym_cmp_val(const void *a, const void *b)
    return sa->value.v - sb->value.v;
 }
 
-void list_symbols(void)
+static void list_symbols(void)
 {
    symbol *sym;
    symbol **sym_array, **sym_p;
@@ -1521,14 +1495,14 @@ void list_symbols(void)
    free(sym_array);
 }
 
-void list_filename(char *fn)
+static void list_filename(char *fn)
 {
    if (listing) {
       fprintf(list_file, "                          FILE: %s\n", fn);
    }
 }
 
-void pass(char **p, int pass)
+static void pass(char **p, int pass)
 {
    int err;
    
@@ -1598,7 +1572,7 @@ void pass(char **p, int pass)
    }      
 }
 
-int save_code(const char *fn, const char *data, int len)
+static int save_code(const char *fn, const unsigned char *data, int len)
 {
    FILE *f = fopen(fn, "wb");
    if (!f) return 0;
@@ -1610,7 +1584,7 @@ int save_code(const char *fn, const char *data, int len)
    return 1;
 }
 
-int init_listing(char *fn)
+static int init_listing(char *fn)
 {
    time_t t;
    struct tm *tm;

@@ -25,7 +25,7 @@
 
 u16 am_size[13] = {1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 2, 2};
 
-const int itbl_size = 56;
+const unsigned itbl_size = 56;
 
 idesc itbl[56] = {
 	{"ADC", {INV, INV, 0x69, INV, 0x65, 0x75, INV, 0x6d, 0x7d, 0x79, INV, 0x61, 0x71}},

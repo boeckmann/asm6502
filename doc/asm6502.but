@@ -56,9 +56,11 @@ The following listing contains a small sample program. It is the classic hello w
 
 The task of an assembler is to translate an \e{assembler source} containing human readable \e{instructions} to a \e{binary representation} a processor understands. This binary representation is called \e{machine code}. There is a one-to-one mapping between the human readable instructions contained in the assembler source and the generated machine code.
 
-Each instruction a processor understands is given a name, called \e{mnemonic}. This name is choosen so that it describes what the instruction does. Each instruction is also assigned a numeric value, called the operation code or \e{opcode}. This is what the processor uses to decide what to do. Beside the instruction itself, additional information may be required to process it. The additional information is provided in the source by one or more \e{arguments} following the mnemonic. In machine code this additional information is encoded in binary form following the opcode.
+All instructions a processor understands is given a name, called \e{mnemonic}. This name is chosen so that it describes to the programmer what the instruction does. Every instruction is also assigned a numeric value, called the operation code or \e{opcode}. This is what gets written by the assembler as machine code to an output file. The opcode is interpreted by the the processor to decide what to do.
 
-\c{ADC #42} is an example of an instruction, where \c{ADC} is the mnemonic identifying the instruction, and \c{#42} is the argument. This particular instruction, understood by the MOS6502 processor adds the value 42 to the value stored in processor register A. It then writes the result back to A.
+Beside the instruction itself, additional information may be required to process it. The additional information is provided in the source by one or more \e{arguments} following the mnemonic. In machine code this additional information is encoded in binary form following the opcode.
+
+\c{ADC #42} is an example of an instruction, where \c{ADC} is the mnemonic identifying the instruction, and \c{#42} is the argument. This particular instruction, understood by the MOS6502 processor, adds the value 42 to the value stored in processor register A. It then writes the result back to A.
 
 The set of instructions a CPU understands is called \e{instruction set}. There are many different kinds of CPUs and instruction sets. As a result, there is not something like \q{the assembler}, but there are many of them, all adapted to one or more specific instruction sets. ASM6502 is an assembler that is adapted to the instruction set of the MOS6502 processor family.
 
@@ -97,7 +99,7 @@ Two data types are known to the assembler:
 
 \b 8-bit \e{byte} storing numbers of value 0 to 255.
 
-\b 16-bit \e{word} storing positive numbers of value 0 to 65535 inclusive. Negative numbers are stored in two-complement representation with range -32768 to 32767 inclusive.
+\b 16-bit \e{word} storing positive numbers of value 0 to 65535. Negative numbers from -32768 to -1 are stored in two-complement representation.
 
 \H{symbols}Symbols
 
@@ -212,7 +214,7 @@ Substitutes the directive with the contents of a file given by the argument. As 
 
 Example:
 
-\c .INCLUDE "c64krnl.inc"
+\c .INCLUDE "c64prg.i65"
 
 \S{}.LIST and .NOLIST
 

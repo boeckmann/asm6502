@@ -56,7 +56,7 @@ typedef struct idesc {
 } idesc;
 
 extern idesc itbl[56];
-extern const int itbl_size;
+extern const unsigned itbl_size;
 
 extern u16 am_size[13];
 

@@ -17,5 +17,5 @@ hello:
   @msg .byte "HELLO, WORLD!", CR, LF
   @len = @ - @msg
 
-CR = 13                         ; carrige return character
+CR = 13                         ; carriage return character
 LF = %1010                      ; line feed character as binary number
