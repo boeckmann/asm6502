@@ -135,15 +135,15 @@ typedef struct symbol {
 #define KIND_VAR  2
 
 static symbol *symbols = NULL;         /* global symbol table */
-static int symbol_count = 0;       /* number of global symbols */
+static int symbol_count = 0;           /* number of global symbols */
 static symbol *current_label = NULL;   /* search scope for local labels */
 
 typedef struct if_state {
-   int process_statements;
-   int condition_met;         /* 1 = condition was met for if */
+   char process_statements;
+   char condition_met;         /* 1 = condition was met for if */
 } if_state;
 
-#define IF_STATE_MAX 8
+#define IF_STATE_MAX 32
 if_state if_stack[IF_STATE_MAX];
 int if_stack_count = 0;
 
@@ -217,7 +217,7 @@ static char* err_msg[] = {
 #define ERR_OPEN        23
    "can not read file",
 #define ERR_MAXINC      24
-   "maximum file stack size exceeded",
+   "maximum number of files exceeded",
 #define ERR_NO_BYTE     25
    "byte sized value expected",
 #define ERR_NO_MEM      26
@@ -225,7 +225,9 @@ static char* err_msg[] = {
 #define ERR_MISSING_IF  27
    "missing .IF",
 #define ERR_MISSING_ENDIF 28
-   "missing .ENDIF"
+   "missing .ENDIF",
+#define ERR_MAX_IF      29
+   "too many if nesting levels"
 };
 
 #define ERROR_NORM 1
@@ -1304,6 +1306,8 @@ static void directive_binary(char **p, int pass)
 static void directive_if(char **p, int pass)
 {
    value v;
+
+   if (if_stack_count >= IF_STATE_MAX) error(ERR_MAX_IF);
 
    if_stack[if_stack_count].process_statements = process_statements;
 
