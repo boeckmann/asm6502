@@ -1334,10 +1334,32 @@ static void directive_endif(char **p, int pass)
    process_statements = if_stack[if_stack_count].process_statements;
 }
 
+static int is_hex_specifier(char **p)
+{
+   char *pt = *p;
+   skip_white(p);
+   if (**p != '[') {
+      *p = pt;
+      return 0;
+   }
+   skip_curr_and_white(p);
+   if (**p != '$') {
+      *p = pt;
+      return 0;
+   }
+   skip_curr_and_white(p);
+   if (**p != ']') {
+      *p = pt;
+      return 0;
+   }
+   (*p)++;
+   return 1;
+}
+
 static void directive_echo(char **p, int pass)
 {
    value v;
-   int next;
+   int next, print_hex;
 
    if (pass == 1) {
       skip_to_eol(p);
@@ -1353,9 +1375,15 @@ static void directive_echo(char **p, int pass)
          printf("%s", filename_buf);
       }
       else {
+         if (is_hex_specifier(p)) print_hex = 1;
+         else print_hex = 0;
+
          v = expr(p);
          if (DEFINED(v)) {
-            printf("%u", (unsigned)v.v);
+            if (print_hex)
+               printf("$%X", (unsigned)v.v);
+            else
+               printf("%u", (unsigned)v.v);
          }
          else {
             printf("?");

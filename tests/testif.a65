@@ -1,18 +1,21 @@
-C64 = 1		; set to zero to assemble for Commodore PET
+C64 = 1   ; set to zero to assemble for Commodore PET
 
 .if C64
-	.echo "Assembling for the Commodore 64"
-	SCREEN_WIDTH = 40
+  .echo "Assembling for the Commodore 64"
+  SCREEN_WIDTH = 40
 .else
-	.echo "Assembling for the Commodore PET series"
-	SCREEN_WIDTH = 80
+  .echo "Assembling for the Commodore PET series"
+  SCREEN_WIDTH = 80
 .endif
 
 .echo "SCREEN_WIDTH = ", SCREEN_WIDTH
 
 .if 1
+  .echo "an undefined value prints like ", ?
 .else
-	.if 1
-		.echo "assembler is flawed!"
-	.endif
+  .if 1
+    .echo "assembler is flawed!"
+  .endif
 .endif
+
+.echo "hexadecimal representation of ", $1267, " is ", [$]4711
