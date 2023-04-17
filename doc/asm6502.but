@@ -201,7 +201,7 @@ Example:
 
 \S{}.ECHO directive
 
-Prints the arguments to standard output while doing the second pass. The arguments may either be strings or numeric expressions, separated by comma. Numeric expressions may be prefixed by the format specifier \cw{[$]} to output the number in hexadecimal format.
+Prints the arguments to standard output while running the second pass. The arguments may either be strings or numeric expressions, separated by comma. Numeric expressions may be prefixed by the format specifier \cw{[$]} to output the number in hexadecimal format.
 
 Example:
 
@@ -220,6 +220,8 @@ Example:
 
 Conditionally assembles code depending on the value of the argument to \cw{.IF}. If it is non-zero the code between \cw{.IF} and \cw{.ENDIF} is assembled, or between \cw{.IF} and \cw{.ELSE}, if \cw{.ELSE} is given. If the argument to \cw{.IF} is zero the code between the corresponding \cw{.ELSE} and \cw{.ENDIF} is assembled, if \cw{.ELSE} is specified. Otherwise the source between \cw{.IF} and \cw{.ENDIF} is skipped.
 
+It is an error if the argument to \cw{.IF} yields an undefined value. The conditional directives may \e{not} be preceded by a label.
+
 Example:
 
 \c C64 = 1
@@ -228,8 +230,6 @@ Example:
 \c .ELSE
 \c   .ECHO "I am assembled for the PET"
 \c .ENDIF
-
-Conditional directives may \e{not} be preceded by a label.
 
 \S{}.INCLUDE directive
 

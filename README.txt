@@ -318,7 +318,7 @@ Published by Bernd Boeckmann under BSD-3 license.
 
  3.6.3 .ECHO directive
 
-       Prints the arguments to standard output while doing the second
+       Prints the arguments to standard output while running the second
        pass. The arguments may either be strings or numeric expressions,
        separated by comma. Numeric expressions may be prefixed by the
        format specifier [$] to output the number in hexadecimal format.
@@ -348,6 +348,9 @@ Published by Bernd Boeckmann under BSD-3 license.
        .ENDIF is assembled, if .ELSE is specified. Otherwise the source
        between .IF and .ENDIF is skipped.
 
+       It is an error if the argument to .IF yields an undefined value. The
+       conditional directives may _not_ be preceded by a label.
+
        Example:
 
          C64 = 1
@@ -356,8 +359,6 @@ Published by Bernd Boeckmann under BSD-3 license.
          .ELSE
            .ECHO "I am assembled for the PET"
          .ENDIF
-
-       Conditional directives may _not_ be preceded by a label.
 
  3.6.6 .INCLUDE directive
 
@@ -927,4 +928,4 @@ A Instruction Reference
 
          98         tya
 
-[Mo 17 Apr 17:31:12 2023]
+[Mo 17 Apr 17:54:40 2023]
