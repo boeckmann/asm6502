@@ -2,11 +2,11 @@
 asm6502
 *.exe
 *.o
+output
 
 # Pelles C
 *.ppx
 *.tag
-output
 
 # watcom files
 *.mk

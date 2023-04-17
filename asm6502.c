@@ -106,6 +106,10 @@ static int list_statements = 0;   /* statement listing activated ? */
 static int list_skip_one = 0;     /* suppress current statement in listing */
 static FILE *list_file;
 
+/* if 0 processing of statements is disabled by conditional assembly
+   directives */
+static int process_statements = 1;
+
 /* data type used when evaluating expressions */
 /* the value may be undefined */
 typedef struct value {
@@ -133,6 +137,15 @@ typedef struct symbol {
 static symbol *symbols = NULL;         /* global symbol table */
 static int symbol_count = 0;       /* number of global symbols */
 static symbol *current_label = NULL;   /* search scope for local labels */
+
+typedef struct if_state {
+   int process_statements;
+   int condition_met;         /* 1 = condition was met for if */
+} if_state;
+
+#define IF_STATE_MAX 8
+if_state if_stack[IF_STATE_MAX];
+int if_stack_count = 0;
 
 /* symbol specific preprocessor directives */
 #define IS_LBL(x) (((x).kind & KIND_LBL) != 0)
@@ -208,7 +221,9 @@ static char* err_msg[] = {
 #define ERR_NO_BYTE     25
    "byte sized value expected",
 #define ERR_NO_MEM      26
-   "insufficient memory"
+   "insufficient memory",
+#define ERR_MISSING_IF  27
+   "missing if"
 };
 
 #define ERROR_NORM 1
@@ -442,6 +457,11 @@ static void skip_curr_and_white(char **p)
    while ((**p == ' ') || (**p == '\t')) {
       (*p)++;
    }
+}
+
+static void skip_to_eol(char **p)
+{
+   while (**p != 0x0a && **p != 0x0d) (*p)++;
 }
 
 static value number(char **p)
@@ -1279,6 +1299,46 @@ static void directive_binary(char **p, int pass)
    fclose(file);
 }
 
+static void directive_if(char **p, int pass)
+{
+   value v;
+
+   if_stack[if_stack_count].process_statements = process_statements;
+
+   if (process_statements) {
+      v = expr(p);
+      if (!DEFINED(v)) error(ERR_UNDEF);
+      process_statements = v.v != 0;
+      if_stack[if_stack_count].condition_met = process_statements;
+   }
+   else {
+      skip_to_eol(p);
+   }
+
+   if_stack_count++;
+}
+
+static void directive_else(char **p, int pass)
+{
+   if (!if_stack_count) error(ERR_MISSING_IF);
+
+   if (if_stack[if_stack_count-1].process_statements)
+      process_statements = !if_stack[if_stack_count-1].condition_met;
+}
+
+static void directive_endif(char **p, int pass)
+{
+   if (!if_stack_count) error(ERR_MISSING_IF);
+
+   if_stack_count--;
+   process_statements = if_stack[if_stack_count].process_statements;
+}
+
+static void directive_echo(char **p, int pass)
+{
+
+}
+
 static int directive(char **p, int pass)
 {
    char id[ID_LEN];
@@ -1307,6 +1367,9 @@ static int directive(char **p, int pass)
    }
    else if (!strcmp(id, "BINARY")) {
       directive_binary(p, pass);
+   }
+   else if (!strcmp(id, "ECHO")) {
+      directive_echo(p, pass);
    }
    else if (!strcmp(id, "NOLIST")) {
       listing = 0;
@@ -1346,7 +1409,7 @@ static int statement(char **p, int pass)
    enum { NONE=0, GLOBAL_LABEL=1, LOCAL_LABEL=2 } label = NONE;
 
    skip_white_and_comment(p);
-   if (IS_END(**p)) return again;
+   if (IS_END(**p)) return 0;
    pt = *p;
 
    /* first check for variable or label definition */
@@ -1403,7 +1466,7 @@ static int statement(char **p, int pass)
 }
 
 static void list_statement(char *statement_start, unsigned short pc_start,
-                           unsigned short oc_start, char *p)
+                           unsigned short oc_start, char *p, int skipped)
 {
    int count = 0;
 
@@ -1428,8 +1491,13 @@ static void list_statement(char *statement_start, unsigned short pc_start,
          count++;
       }
    }
-   fprintf(list_file, "%6d: ", line);
+   fprintf(list_file, "%6d", line);
+   if (skipped)
+      fprintf(list_file, "! ");
+   else
+      fprintf(list_file, ": ");
    fwrite(statement_start, 1, (int)(p - statement_start), list_file);
+
    fputs("\n", list_file);
 }
 
@@ -1502,6 +1570,35 @@ static void list_filename(char *fn)
    }
 }
 
+static int conditional_statement(char **p, int pass)
+{
+   char id[ID_LEN];
+   char *pt = *p;
+
+   skip_white_and_comment(p);
+
+   if (IS_END(**p)) return 0;
+   if (**p != DIRECTIVE_LETTER) return 0;
+   (*p)++;
+   ident_upcase(p, id);
+
+   if (!strcmp(id, "IF")) {
+      directive_if(p, pass);
+      return 1;
+   }
+   else if (!strcmp(id, "ELSE")) {
+      directive_else(p, pass);
+      return 1;
+   }
+   else if (!strcmp(id, "ENDIF")) {
+      directive_endif(p, pass);
+      return 1;
+   }
+
+   *p = pt;
+   return 0;
+}
+
 static void pass(char **p, int pass)
 {
    int err;
@@ -1510,6 +1607,7 @@ static void pass(char **p, int pass)
    asm_file *last_file;
    unsigned short oc_start;
    unsigned short pc_start;
+   int conditional;
 
    pc = 0;  /* initialize program counter to zero */
    oc = 0;  /* initialize output counter to zero */
@@ -1521,6 +1619,7 @@ static void pass(char **p, int pass)
 
    if (!(err = setjmp(error_jmp))) {
       while (**p || pos_stk_ptr > 0) {
+         conditional = 0;
 
          if (current_file != last_file) {
             /* file changed (start or terminate processing of inc file ) */
@@ -1537,11 +1636,19 @@ static void pass(char **p, int pass)
          pc_start = pc;
          oc_start = oc;
 
-         if (statement(p, pass)) {
-            /* statement returns an "again" flag that is set by the include
-               directive. If true we have to start over again with new file,
-               position and line number */
-            continue;
+         if (conditional_statement(p, pass)) {
+            conditional = 1;
+         }
+         else if (process_statements) {
+            if (statement(p, pass)) {
+               /* statement returns an "again" flag that is set by the include
+                  directive. If true we have to start over again with new file,
+                  position and line number */
+               continue;
+            }
+         }
+         else {
+            skip_to_eol(p);
          }
 
          skip_white_and_comment(p);
@@ -1553,7 +1660,7 @@ static void pass(char **p, int pass)
          }
 
          if (pass == 2)
-            list_statement(statement_start, pc_start, oc_start, *p);
+            list_statement(statement_start, pc_start, oc_start, *p, !conditional && !process_statements);
                  
          skip_eol(p);
          line++;
