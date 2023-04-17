@@ -1336,7 +1336,41 @@ static void directive_endif(char **p, int pass)
 
 static void directive_echo(char **p, int pass)
 {
+   value v;
+   int next;
 
+   if (pass == 1) {
+      skip_to_eol(p);
+      return;
+   }
+
+   do {
+      next = 0;
+      skip_white(p);
+
+      if ( **p == '"') {
+         string_lit(p, filename_buf, STR_LEN);
+         printf("%s", filename_buf);
+      }
+      else {
+         v = expr(p);
+         if (DEFINED(v)) {
+            printf("%u", (unsigned)v.v);
+         }
+         else {
+            printf("?");
+         }
+      }
+
+      skip_white(p);
+      if (**p == ',') {
+         skip_curr_and_white(p);
+         next = 1;
+      }
+   }
+   while (next);
+
+   puts("");
 }
 
 static int directive(char **p, int pass)
