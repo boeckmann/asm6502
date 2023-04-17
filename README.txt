@@ -15,9 +15,7 @@ Published by Bernd Boeckmann under BSD-3 license.
        ability to produce listing files, and the optimization of opcodes.
        In its current state, it is a usable assembler confirmed to generate
        the correct code for all supported instructions and addressing mode
-       combinations. Due to the small size, two features are currently
-       missing, namely conditional assembly and macros. The former may be
-       implemented in the future, but the latter probably not.
+       combinations. Due to the small size, macros are not supported.
 
        The assembler outputs plain binary files.
 
@@ -69,19 +67,23 @@ Published by Bernd Boeckmann under BSD-3 license.
        human readable instructions contained in the assembler source and
        the generated machine code.
 
-       Each instruction a processor understands is given a name, called
-       _mnemonic_. This name is choosen so that it describes what the
-       instruction does. Each instruction is also assigned a numeric
-       value, called the operation code or _opcode_. This is what the
-       processor uses to decide what to do. Beside the instruction itself,
-       additional information may be required to process it. The additional
-       information is provided in the source by one or more _arguments_
-       following the mnemonic. In machine code this additional information
-       is encoded in binary form following the opcode.
+       All instructions a processor understands is given a name, called
+       _mnemonic_. This name is chosen so that it describes to the
+       programmer what the instruction does. Every instruction is also
+       assigned a numeric value, called the operation code or _opcode_.
+       This is what gets written by the assembler as machine code to an
+       output file. The opcode is interpreted by the the processor to
+       decide what to do.
+
+       Beside the instruction itself, additional information may be
+       required to process it. The additional information is provided in
+       the source by one or more _arguments_ following the mnemonic. In
+       machine code this additional information is encoded in binary form
+       following the opcode.
 
        `ADC #42' is an example of an instruction, where `ADC' is the
        mnemonic identifying the instruction, and `#42' is the argument.
-       This particular instruction, understood by the MOS6502 processor
+       This particular instruction, understood by the MOS6502 processor,
        adds the value 42 to the value stored in processor register A. It
        then writes the result back to A.
 
@@ -177,9 +179,9 @@ Published by Bernd Boeckmann under BSD-3 license.
 
         -  8-bit _byte_ storing numbers of value 0 to 255.
 
-        -  16-bit _word_ storing positive numbers of value 0 to 65535
-           inclusive. Negative numbers are stored in two-complement
-           representation with range -32768 to 32767 inclusive.
+        -  16-bit _word_ storing positive numbers of value 0 to 65535.
+           Negative numbers from -32768 to -1 are stored in two-complement
+           representation.
 
    3.3 Symbols
 
@@ -314,7 +316,18 @@ Published by Bernd Boeckmann under BSD-3 license.
          .BYTE 47, 11
          .BYTE "Hello, World", 13, 10
 
- 3.6.3 .FILL directive
+ 3.6.3 .ECHO directive
+
+       Prints the arguments to standard output while doing the second
+       pass. The arguments may either be strings or numeric expressions,
+       separated by comma. Numeric expressions may be prefixed by the
+       format specifier [$] to output the number in hexadecimal format.
+
+       Example:
+
+         .ECHO "hexadecimal representation of ", 4711, " is ", [$]4711
+
+ 3.6.4 .FILL directive
 
        Starting from the current position of the output file, emits as many
        bytes as given by the first argument. If the second argument is
@@ -326,7 +339,27 @@ Published by Bernd Boeckmann under BSD-3 license.
          .FILL 100       ; fill 100 bytes with zero
          .FILL 16, $EA   ; insert 16 NOPs ($EA) into the code
 
- 3.6.4 .INCLUDE directive
+ 3.6.5 .IF, .ELSE and .ENDIF directives
+
+       Conditionally assembles code depending on the value of the argument
+       to .IF. If it is non-zero the code between .IF and .ENDIF is
+       assembled, or between .IF and .ELSE, if .ELSE is given. If the
+       argument to .IF is zero the code between the corresponding .ELSE and
+       .ENDIF is assembled, if .ELSE is specified. Otherwise the source
+       between .IF and .ENDIF is skipped.
+
+       Example:
+
+         C64 = 1
+         .IF C64
+           .ECHO "I am assembled for the C64"
+         .ELSE
+           .ECHO "I am assembled for the PET"
+         .ENDIF
+
+       Conditional directives may _not_ be preceded by a label.
+
+ 3.6.6 .INCLUDE directive
 
        Substitutes the directive with the contents of a file given by the
        argument. As a convention the extension of include-files should be
@@ -336,7 +369,7 @@ Published by Bernd Boeckmann under BSD-3 license.
 
          .INCLUDE "c64prg.i65"
 
- 3.6.5 .LIST and .NOLIST
+ 3.6.7 .LIST and .NOLIST
 
        If a listing file is given via command line, listing generation is
        initially enabled. If the user wants some parts of the code to be
@@ -352,7 +385,7 @@ Published by Bernd Boeckmann under BSD-3 license.
        listing generation is resumed after processing the include file from
        the line after the `.INCLUDE' line.
 
- 3.6.6 .ORG directive
+ 3.6.8 .ORG directive
 
        Sets the current program counter to the numeric value of the
        argument. Does not modify the offset into the output file. This
@@ -362,7 +395,7 @@ Published by Bernd Boeckmann under BSD-3 license.
 
          .ORG $0801
 
- 3.6.7 .WORD directive
+ 3.6.9 .WORD directive
 
        Produces one or more output words.
 
@@ -894,4 +927,4 @@ A Instruction Reference
 
          98         tya
 
-[Fr 14 Apr 10:26:43 2023]
+[Mo 17 Apr 17:31:12 2023]

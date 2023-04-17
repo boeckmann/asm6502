@@ -12,7 +12,7 @@
 
 ASM6502 is a small two-pass assembler for the MOS Technology 6502 microprocessor used in many home computers of the 8-bit era. It consists of under 2K lines of C code and can be built with compilers conformant to the C89 standard.
 
-ASM6502 implements some advanced features, like local labels, the ability to produce listing files, and the optimization of opcodes. In its current state, it is a usable assembler confirmed to generate the correct code for all supported instructions and addressing mode combinations. Due to the small size, two features are currently missing, namely conditional assembly and macros. The former may be implemented in the future, but the latter probably not.
+ASM6502 implements some advanced features, like local labels, the ability to produce listing files, and the optimization of opcodes. In its current state, it is a usable assembler confirmed to generate the correct code for all supported instructions and addressing mode combinations. Due to the small size, macros are not supported.
 
 The assembler outputs plain binary files.
 
@@ -199,6 +199,14 @@ Example:
 \c .BYTE 47, 11
 \c .BYTE "Hello, World", 13, 10
 
+\S{}.ECHO directive
+
+Prints the arguments to standard output while doing the second pass. The arguments may either be strings or numeric expressions, separated by comma. Numeric expressions may be prefixed by the format specifier \cw{[$]} to output the number in hexadecimal format.
+
+Example:
+
+\c .ECHO "hexadecimal representation of ", 4711, " is ", [$]4711
+
 \S{}.FILL directive
 
 Starting from the current position of the output file, emits as many bytes as given by the first argument. If the second argument is given, the region is filled with its byte-sized value. Otherwise, it is filled with zero. The program counter is increased accordingly.
@@ -207,6 +215,21 @@ Example:
 
 \c .FILL 100       ; fill 100 bytes with zero
 \c .FILL 16, $EA   ; insert 16 NOPs ($EA) into the code
+
+\S{}.IF, .ELSE and .ENDIF directives
+
+Conditionally assembles code depending on the value of the argument to \cw{.IF}. If it is non-zero the code between \cw{.IF} and \cw{.ENDIF} is assembled, or between \cw{.IF} and \cw{.ELSE}, if \cw{.ELSE} is given. If the argument to \cw{.IF} is zero the code between the corresponding \cw{.ELSE} and \cw{.ENDIF} is assembled, if \cw{.ELSE} is specified. Otherwise the source between \cw{.IF} and \cw{.ENDIF} is skipped.
+
+Example:
+
+\c C64 = 1
+\c .IF C64
+\c   .ECHO "I am assembled for the C64"
+\c .ELSE
+\c   .ECHO "I am assembled for the PET"
+\c .ENDIF
+
+Conditional directives may \e{not} be preceded by a label.
 
 \S{}.INCLUDE directive
 

@@ -223,7 +223,9 @@ static char* err_msg[] = {
 #define ERR_NO_MEM      26
    "insufficient memory",
 #define ERR_MISSING_IF  27
-   "missing if"
+   "missing .IF",
+#define ERR_MISSING_ENDIF 28
+   "missing .ENDIF"
 };
 
 #define ERROR_NORM 1
@@ -1678,6 +1680,8 @@ static void pass(char **p, int pass)
    line = 1;
    current_label = NULL;
    listing = list_statements;
+   process_statements = 1;
+   if_stack_count = 0;
 
    if (!(err = setjmp(error_jmp))) {
       while (**p || pos_stk_ptr > 0) {
@@ -1730,6 +1734,8 @@ static void pass(char **p, int pass)
          list_skip_one = 0;
          last_file = current_file;
       }
+
+      if (if_stack_count) error(ERR_MISSING_ENDIF);
    }
    else {
       if (error_type == ERROR_NORM)
@@ -1738,7 +1744,7 @@ static void pass(char **p, int pass)
       else
          printf("%s:%d: error: %s %s\n", current_file->filename, line,
             err_msg[err], error_hint);
-   }      
+   }
 }
 
 static int save_code(const char *fn, const unsigned char *data, int len)
