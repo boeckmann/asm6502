@@ -14,7 +14,8 @@ cd ..\..\..
 copy project\watcom\dos\asm6502.exe output\bin\dos\asm6502.exe
 copy project\watcom\os2\asm6502.exe output\bin\os2\asm6502.exe
 copy project\watcom\win32\asm6502.exe output\bin\win32\asm6502.exe
-copy doc\asm6502.txt output\doc\asm6502.txt
+copy readme.md output\doc\asm6502.txt
+copy LICENSE output\doc\license.txt
 copy doc\asm6502.pdf output\doc\asm6502.pdf
 del asm6502.zip
 cd output
