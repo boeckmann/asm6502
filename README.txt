@@ -3,7 +3,7 @@
 
 Copyright 2022-2023 by Bernd Boeckmann
 
-1 Installation
+1 Where to get
 --------------
 
        Latest source and binaries may be found at:
@@ -13,7 +13,7 @@ Copyright 2022-2023 by Bernd Boeckmann
         -  https://codeberg.org/boeckmann/asm6502
 
        Binaries are provided for Windows, DOS, and OS/2. A Unix make file
-       is provided, which should be easy to adapt to every C89 conformant C
+       is provided which should be easily adaptable to any C89 conformant C
        compiler.
 
 2 Introduction
@@ -997,4 +997,4 @@ A Instruction Reference
 
          98         tya
 
-[Di 18 Apr 16:40:11 2023]
+[Di 18 Apr 16:44:54 2023]

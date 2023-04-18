@@ -8,8 +8,7 @@
 
 \versionid \date
 
-
-\C{} Installation
+\C{}Where to get
 
 Latest source and binaries may be found at:
 
@@ -17,7 +16,7 @@ Latest source and binaries may be found at:
 
 \b https://codeberg.org/boeckmann/asm6502
 
-Binaries are provided for Windows, DOS, and OS/2. A Unix make file is provided, which should be easy to adapt to every C89 conformant C compiler.
+Binaries are provided for Windows, DOS, and OS/2. A Unix make file is provided which should be easily adaptable to any C89 conformant C compiler.
 
 \C{intro}Introduction
 
