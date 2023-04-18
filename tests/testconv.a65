@@ -1,0 +1,6 @@
+lda     IDX + 5  ; 3-byte instruction
+lda [b] IDX + 5  ; 2-byte instruction
+
+IDX = $10
+
+X = [w]1    ; defines word-sized variable

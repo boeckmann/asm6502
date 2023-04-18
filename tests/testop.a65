@@ -1,0 +1,42 @@
+X = $ffff >> 3		; logical shift right
+
+.if X != $1FFF
+	.echo "assembler error!"
+.else
+	.if X == $1FFF
+		.echo "X = ", X
+	.endif
+.endif
+
+.if 1 >= 2
+	.echo "assembler error!"
+.endif
+
+.if 2 <= 1
+	.echo "assembler error!"
+.endif
+
+.if 2 < 1
+	.echo "assembler error!"
+.endif
+
+.if 1 > 2
+	.echo "assembler error!"
+.endif
+
+.echo "Comparison with undefined yields ", 1 < ?
+
+Y = $4711
+.echo "low byte of ", [$]Y, " is ", [$]<Y, ", high byte is ", [$]>Y
+.echo (0 < (<$4711)) + 41, " should be 42"
+
+.if .not 0
+	.echo "not zero"
+.endif
+
+B1 = 42 == 42
+
+B2 = [b]?
+B3 = [w]?
+B4 = ?
+B5 = 42 == ?

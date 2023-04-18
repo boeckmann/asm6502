@@ -1,6 +1,6 @@
 /* ASM6502
  *
- * Copyright (c) 2022 Bernd Böckmann
+ * Copyright (c) 2022 Bernd Boeckmann
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal

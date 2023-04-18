@@ -1,6 +1,6 @@
 /* ASM6502
  *
- * Copyright (c) 2022-2023 Bernd Böckmann
+ * Copyright (c) 2022-2023 Bernd Boeckmann
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -329,19 +329,19 @@ static char sym_kind_to_char(u8 kind)
    return '-';
 }
 
-#if 0
 static char sym_type_to_char(u8 typ)
 {
-   if ((typ & 0x3f) == 0) return 'U';
+   if ((typ & 0x3f) == 0) return '?';
    switch (typ & 0x3f) {
       case TYPE_BYTE:
-         return 'B';
+         return 'b';
       case TYPE_WORD:
-         return 'W';
+         return 'w';
    }
    return '?';
 }
 
+#if 0
 static void dump_symbols(void)
 {
    symbol *sym = symbols;
@@ -466,6 +466,14 @@ static void skip_curr_and_white(char **p)
 static void skip_to_eol(char **p)
 {
    while (**p != 0x0a && **p != 0x0d) (*p)++;
+}
+
+static int starts_with(char *text, char *s)
+{
+   while (*s) {
+      if (toupper(*text++) != toupper(*s++)) return 0;
+   }
+   return 1;
 }
 
 static value number(char **p)
@@ -636,8 +644,12 @@ static value product(char **p)
    skip_white(p);
    op = **p;
 
-   while((op == '*') || (op == '/') || (op == AND_LETTER)) {
+   while((op == '*') || (op == '/') || (op == AND_LETTER)
+         || (**p == '<' && *(*p+1) == '<')
+         || (**p == '>' && *(*p+1) == '>')) {
       (*p)++;
+      if (**p == '<' || **p == '>') (*p)++;
+
       n2 = primary(p);
 
       switch (op) {
@@ -647,6 +659,10 @@ static value product(char **p)
             res.v = (u16)(res.v / n2.v); break;
          case AND_LETTER:
             res.v = (u16)(res.v & n2.v); break;
+         case '<':
+            res.v = (u16)(res.v << n2.v); break;
+         case '>':
+            res.v = (u16)(res.v >> n2.v); break;
       }
 
       INFERE_TYPE(res, n2);
@@ -706,6 +722,41 @@ static value term(char **p)
    return res;
 }
 
+static value comparison(char **p)
+{
+   value res, n2;
+   char op, op2;
+
+   res = term(p); 
+    
+   skip_white(p);
+   while ((**p == '=' && *(*p+1) == '=') ||
+          (**p == '!' && *(*p+1) == '=') ||
+          (**p == '<' && *(*p+1) == '=') ||
+          (**p == '>' && *(*p+1) == '=') ||
+          (**p == '<') || (**p == '>')) {
+      op = **p;
+      op2 = *(*p + 1);
+      *p += 1;
+      if (**p == '=') *p += 1;
+
+      n2 = term(p);
+
+      switch (op) {
+      case '=': res.v = res.v == n2.v; break;
+      case '!': res.v = res.v != n2.v; break;
+      case '<': res.v = (op2 == '=') ? res.v <= n2.v : res.v < n2.v; break;
+      case '>': res.v = (op2 == '=') ? res.v >= n2.v : res.v > n2.v; break;
+      }
+
+      INFERE_DEFINED(res, n2);
+      if (DEFINED(res) && res.v) res.v = 1;
+      SET_TYPE(res, TYPE_BYTE);
+  }
+
+   return res;
+}
+
 static value expr(char **p)
 {
    value v;
@@ -713,22 +764,39 @@ static value expr(char **p)
    skip_white(p);
    if (**p == '>') {
       (*p)++;
-      v = term(p);
+      v = comparison(p);
       SET_TYPE(v, TYPE_BYTE);
       v.v = v.v >> 8;
    }
    else if (**p == '<') {
       (*p)++;
-      v = term(p);
+      v = comparison(p);
       SET_TYPE(v, TYPE_BYTE);
       v.v = v.v & 0xff;
    }
-   else if (**p == '!') {
-      (*p)++;
-      v = term(p);
+   else if (starts_with(*p, "[b]")) {
+      /* lossless byte conversion */
+      *p += 3;
+      v = comparison(p);
+      if (DEFINED(v) && v.v > 0xff)
+         error(ERR_BYTERNG);
+      SET_TYPE(v, TYPE_BYTE);
+   }
+   else if (starts_with(*p, "[w]")) {
+      /* lossless word conversion */
+      *p += 3;
+      v = comparison(p);
       SET_TYPE(v, TYPE_WORD);
    }
-   else v = term(p);
+   else if (starts_with(*p, ".not")) {
+      *p += 4;
+      v = comparison(p);
+      if (DEFINED(v)) {
+         v.v = (v.v) ? 0 : 1;
+      }
+      SET_TYPE(v, TYPE_BYTE);
+   }
+   else v = comparison(p);
    return v;
 }
 
@@ -1561,7 +1629,7 @@ static void list_statement(char *statement_start, unsigned short pc_start,
    }
    fprintf(list_file, "%6d", line);
    if (skipped)
-      fprintf(list_file, "! ");
+      fprintf(list_file, "- ");
    else
       fprintf(list_file, ": ");
    fwrite(statement_start, 1, (int)(p - statement_start), list_file);
@@ -1606,25 +1674,27 @@ static void list_symbols(void)
       sym_p = sym_array;
    
       if (i == 1) {
-         fprintf(list_file, "\n\n<<< SYMBOLS BY NAME >>>\n\n");
+         fprintf(list_file, "\n\n-- SYMBOLS BY NAME -------------------\n\n");
          qsort(sym_array, symbol_count, sizeof(symbol *), sym_cmp_name);
       }
       else {
-         fprintf(list_file, "\n\n<<< SYMBOLS BY VALUE >>>\n\n");
+         fprintf(list_file, "\n\n-- SYMBOLS BY VALUE ------------------\n\n");
          qsort(sym_array, symbol_count, sizeof(symbol *), sym_cmp_val);
       }
    
-      fprintf(list_file, "   HEX    DEC   NAME\n");
+      fprintf(list_file, "     HEX    DEC  NAME\n");
       for (; *sym_p; sym_p++) {
          sym = *sym_p;
-         if (TYPE(sym->value) == TYPE_BYTE)
-            fprintf(list_file, "%c    %02X  %5u   %-32s\n",
-               sym_kind_to_char(sym->kind), sym->value.v, sym->value.v,
-               sym->name);
-         else
-            fprintf(list_file, "%c  %04X  %5u   %-32s\n",
-               sym_kind_to_char(sym->kind), sym->value.v, sym->value.v,
-               sym->name);
+         fprintf(list_file, "%c%c  ", sym_kind_to_char(sym->kind),
+            sym_type_to_char(sym->value.t));
+         if (DEFINED(sym->value)) {
+            if (TYPE(sym->value) == TYPE_BYTE)
+               fprintf(list_file, "  %02X  %5u",sym->value.v, sym->value.v);
+            else
+               fprintf(list_file, "%04X  %5u", sym->value.v, sym->value.v);
+         }
+         else fprintf(list_file, "   ?      ?");
+         fprintf(list_file, "  %-32s\n", sym->name);
       }
    }
 
