@@ -652,18 +652,21 @@ static value product(char **p)
 
       n2 = primary(p);
 
-      switch (op) {
-         case '*':
-            res.v = (u16)(res.v * n2.v); break;
-         case '/':
-            res.v = (u16)(res.v / n2.v); break;
-         case AND_LETTER:
-            res.v = (u16)(res.v & n2.v); break;
-         case '<':
-            res.v = (u16)(res.v << n2.v); break;
-         case '>':
-            res.v = (u16)(res.v >> n2.v); break;
+      if (DEFINED(res) && DEFINED(n2)) {
+         switch (op) {
+            case '*':
+               res.v = (u16)(res.v * n2.v); break;
+            case '/':
+               res.v = (u16)(res.v / n2.v); break;
+            case AND_LETTER:
+               res.v = (u16)(res.v & n2.v); break;
+            case '<':
+               res.v = (u16)(res.v << n2.v); break;
+            case '>':
+               res.v = (u16)(res.v >> n2.v); break;
+         }         
       }
+      else res.v = 0;
 
       INFERE_TYPE(res, n2);
       INFERE_DEFINED(res, n2);
@@ -703,16 +706,20 @@ static value term(char **p)
       (*p)++;
       n2 = product(p);
 
-      switch (op) {
-         case '+':
-            res.v = res.v + n2.v; break;
-         case '-':
-            res.v = res.v - n2.v; break;
-         case OR_LETTER:
-            res.v = res.v | n2.v; break;
-         case EOR_LETTER:
-            res.v = res.v ^ n2.v; break;
+      if (DEFINED(res) && DEFINED(n2)) {
+         switch (op) {
+            case '+':
+               res.v = res.v + n2.v; break;
+            case '-':
+               res.v = res.v - n2.v; break;
+            case OR_LETTER:
+               res.v = res.v | n2.v; break;
+            case EOR_LETTER:
+               res.v = res.v ^ n2.v; break;
+         }         
       }
+      else res.v = 0;
+
       INFERE_TYPE(res, n2);
       INFERE_DEFINED(res, n2);
       skip_white(p);
@@ -742,13 +749,16 @@ static value comparison(char **p)
 
       n2 = term(p);
 
-      switch (op) {
-      case '=': res.v = res.v == n2.v; break;
-      case '!': res.v = res.v != n2.v; break;
-      case '<': res.v = (op2 == '=') ? res.v <= n2.v : res.v < n2.v; break;
-      case '>': res.v = (op2 == '=') ? res.v >= n2.v : res.v > n2.v; break;
+      if (DEFINED(res) && DEFINED(n2)) {
+         switch (op) {
+         case '=': res.v = res.v == n2.v; break;
+         case '!': res.v = res.v != n2.v; break;
+         case '<': res.v = (op2 == '=') ? res.v <= n2.v : res.v < n2.v; break;
+         case '>': res.v = (op2 == '=') ? res.v >= n2.v : res.v > n2.v; break;
+         }         
       }
-
+      else res.v = 0;
+      
       INFERE_DEFINED(res, n2);
       if (DEFINED(res) && res.v) res.v = 1;
       SET_TYPE(res, TYPE_BYTE);
@@ -1800,7 +1810,8 @@ static void pass(char **p, int pass)
          }
 
          if (pass == 2)
-            list_statement(statement_start, pc_start, oc_start, *p, !conditional && !process_statements);
+            list_statement(statement_start, pc_start, oc_start, *p,
+               !conditional && !process_statements);
                  
          skip_eol(p);
          line++;
@@ -1848,7 +1859,8 @@ static int init_listing(char *fn)
    tm = localtime(&t);
    strftime(ts, sizeof(ts), "%Y-%m-%d %H:%M", tm);
 
-   fprintf(list_file, "ASM6502 LISTING FOR %s @ %s\n\n", current_file->filename, ts);
+   fprintf(list_file, "ASM6502 LISTING FOR %s @ %s\n\n",
+      current_file->filename, ts);
    fprintf(list_file, "FPos  PC    Code          Line# Assembler text\n");
 
    return 1;

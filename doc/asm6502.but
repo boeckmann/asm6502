@@ -9,13 +9,15 @@
 \versionid \date
 
 
-\C{} Where to get
+\C{} Installation
 
 Latest source and binaries may be found at:
 
 \b https://github.com/boeckmann/asm6502
 
 \b https://codeberg.org/boeckmann/asm6502
+
+Binaries are provided for Windows, DOS, and OS/2. A Unix make file is provided, which should be easy to adapt to every C89 conformant C compiler.
 
 \C{intro}Introduction
 
@@ -133,55 +135,89 @@ Symbols may be defined locally by prepending them with \cw{@}. They are associat
 
 \H{expressions}Expressions
 
-There are many places where expressions may occur, for example on the right side of a variable definition or as an argument to a machine instruction. The most primitive form of an expression is a numeric constant, which can be given in decimal, hexadecimal, or binary. The value of the constant determines its type. A small value can be forced to be of type word by prepending zeros.
+There are many places where expressions may occur, for example on the right side of a variable definition or as an argument to a machine instruction.
+
+Every expression is either of type byte, word or of unknown type. Every expression also has a defined numeric value or an undefined value.
+
+\S{primitives}Primitive Expressions
+
+The most primitive form of an expression is a numeric constant, which can be given in decimal, hexadecimal, or binary. The value of the constant determines its type.
 
 \c 5     ; decimal byte constant
 \c $a    ; hexadecimal byte constant
 \c $4711 ; hexadecimal word constant
 \c %1011 ; binary byte constant
-\c $00a  ; hex word constant because more than 2 digits
-\c 0123  ; decimal word constant because more than 3 digits
-\c 'x'   ; byte typed ASCII character code of x
 \c -1    ; word constant $FFFF (2-complement)
 
-Arithmetic operations may be used in expressions. Operator precedence is respected, as in the following example:
+A byte-sized value can be forced to be of type word by prepending zeros.
 
-\c 2+3*5 ; yields value 17
-\c @ - 2 ; current program counter - 2
+\c $00a  ; hex word constant because more than 2 digits
+\c 0123  ; decimal word constant because more than 3 digits
+
+A character enclosed by \cw{'} is evaluated to its ASCII value.
+
+\c 'x'   ; byte typed ASCII character code of x
+
+The special symbol \cw{@} returns the current value of the program counter. The special symbol \cw{?} returns an undefined value of unknown type.
+
+\c ?     ; undefined value
+\c @     ; current program counter
+
+Label and variable names evaluate to their respective value.
+
+\c LOAD_ADDR = 2048
+\c lda LOAD_ADDR     ; load memory cell 2048 into accumulator
+
+\S{operators}Operator Precedence
+
+Expressions may be composed of arithmetic sub-expressions. Operator precedence is respected.
 	
-The supported operations are the following:
+The supported operations from highest to lowest precedence are:
 
-\b lowest precedence: unary byte select: low byte (<) and high byte (>)
+\b expressions enclosed by parentheses \cw{()}
 
-\b unary and binary addition (+) and subtraction(-), bit-wise or (|), exclusive or (^)
+\b multiplication \cw{*}, division \cw{/}, bit-wise and \cw{&}, logical left \cw{<<} and right \cw{>>} shift.
 
-\b multiplication (*), division (/), bit-wise and(&)
+\b unary plus and binary addition \cw{+}, unary minus and subtraction \cw{-}, bit-wise or \cw{|}, exclusive or \cw{^}
 
-\b highest precedence: expressions enclosed by parentheses
-	
+\b comparison operators: \cw{==}, \cw{!=}, \cw{<}, \cw{>}, \cw{<=}, \cw{>=}
+
+\b unary low \cw{<} and high \cw{>} byte select, lossless unary conversion operators \cw{[b]} and \cw{[w]}, unary logical negate \cw{.not}
+
+\S{}Conversion operators
+
+The convert to byte \cw{[b]} and convert to word \cw{[w]} operators change the data type of their expression. If the expression does not fit into a byte, \cw{[b]} raises an error. The operators also change the type of the undefined value while retaining undefined as a value.
+
+\S{}Byte-select operators
+
+The low-byte select operator \cw{<} returns the low byte of a word-sized expression, or the unmodified value of a byte-sized expression. The high-byte select operator \cw{>} returns the high byte of a word-sized expression shifted eight bits to the right. It returns zero for byte-sized expressions. The resulting data type of both operators is byte. If applied to an undefined argument the result is undefined.
+
+\S{}Logical Operators
+
+The comparison operators and the logical negate operator return 1 if the comparison is true, else they return 0. The result is of type byte. If one or both arguments have an undefined value, the result is the undefined value.
+
+\S{}Arithmetic Operators
+
+The usual semantics for the arithmetic operators apply.
+
+If there is an undefined argument to one of the arithmetic operators, the result value is undefined. Type inference is performed as such that if any of the arguments is of type word, the result is of type word. The result is also of type word if it would overflow the range of type byte.
+
 Examples:
 
+\c 2+3*5     ; yields correct value 17
 \c <$4711    ; selects low byte $11
-\c >$4711    ; selects high byte $47
-\c +(x+2)*5
+\c 255+255   ; of type word because >256
 
-In the last example the unary + is only needed if used as an instruction argument to distinguish from 6502 indirect addressing mode.
-
-The special symbol \cw{@} evaluates to the current value of the program counter. It may not be confused with a local label, like \cw{@abc}.
 
 \H{line-format}Line Format
 
-Each line may end with a comment started by a semicolon.
+A line may either contain a statement or a conditional statement or none of them. A statement it either a variable definition, an instruction or a directive. Instructions and directives may be preceded by a label definition. Also, a label definition may stand for its own. Conditional statements are \cw{.IF}, \cw{.ELSE}, and \cw{.ENDIF}. Each line may end with a comment. Comments are started by semicolon and ignored by the assembler.
 
-At the beginning of a line, a label may be specified if the line does not contain a variable definition.
-
-\c start:              ; line consisting of a label
-\c loop: BNE loop.     ; label and instruction
-\c msg:  .byte "Hello" ; label followed by a directive
-
-Variables are defined by giving the variable name followed by an equal sign followed by an expression yielding a numeric value of type byte or word:
-
-\c CHROUT = $FFD2
+\c start:              ; line consisting only of a label
+\c loop: BNE loop      ; label and instruction
+\c msg   .byte "Hello" ; label followed by a directive
+\c X = 42              ; variable definition
+\c .if X == 42         ; conditional statement
 
 \H{directives}Directives
 
