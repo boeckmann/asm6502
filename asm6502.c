@@ -846,9 +846,15 @@ static void upcase(char *p)
 
 static idesc *getidesc(const char *p)
 {
-   int i;
-   for (i=0; i < (int)(sizeof(itbl)/sizeof(idesc)); i++) {
-      if (!strcmp(p, itbl[i].mn)) return &itbl[i];
+   int l = 0, r = sizeof(itbl) / sizeof(idesc), x;
+   int cmp;
+
+   while (r >= l) {
+      x = l + ((r - l) >> 2);
+      cmp = strcmp(p, itbl[x].mn);
+      if (cmp == 0) return &itbl[x];
+      else if (cmp > 0) l = x + 1;
+      else r = x - 1;
    }
    return NULL;
 }
@@ -1544,16 +1550,19 @@ static int directive(char **p, int pass)
 static int ismnemonic(const char *id)
 {
    char id1[ID_LEN];
+   int l = 0, r = sizeof(itbl) / sizeof(idesc), x;
    int cmp;
-   size_t i;
-   
    strcpy(id1, id);
    upcase(id1);
-   for (i=0; i<itbl_size; i++) {
-      cmp = strcmp(id, itbl[i].mn);
-      if (cmp <= 0) break;
+
+   while (r >= l) {
+      x = l + ((r - l) >> 2);
+      cmp = strcmp(id, itbl[x].mn);
+      if (cmp == 0) return 1;
+      else if (cmp > 0) l = x + 1;
+      else r = x - 1;
    }
-   return cmp == 0;
+   return 0;
 }
 
 /* processes one statement or assembler instruction */
