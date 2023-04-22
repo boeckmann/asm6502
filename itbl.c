@@ -85,4 +85,3 @@ idesc itbl[56] = {
 	{"TXS", {INV, 0x9a, INV, INV, INV, INV, INV, INV, INV, INV, INV, INV, INV}},
 	{"TYA", {INV, 0x98, INV, INV, INV, INV, INV, INV, INV, INV, INV, INV, INV}}
 };
-

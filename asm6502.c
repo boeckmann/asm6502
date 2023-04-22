@@ -131,12 +131,14 @@ typedef struct symbol {
    struct symbol *locals;  /* local subdefinitions */
 } symbol;
 
+#define SYMTBL_SIZE 1024
+symbol *symtbl[SYMTBL_SIZE];
+static int symbol_count = 0;           /* number of global symbols */
+static symbol *current_label = NULL;   /* search scope for local labels */
+
 #define KIND_LBL  1
 #define KIND_VAR  2
 
-static symbol *symbols = NULL;         /* global symbol table */
-static int symbol_count = 0;           /* number of global symbols */
-static symbol *current_label = NULL;   /* search scope for local labels */
 
 typedef struct if_state {
    char process_statements;
@@ -254,13 +256,30 @@ noreturn static void error_ext(int err, const char* msg)
    longjmp(error_jmp, err);
 }
 
+static unsigned name_hash( const char *name )
+{
+   unsigned h = 0;
+   while ( *name ) {
+      h = h * 57 + ( *name++ - 'A' );
+   }
+   return h;
+}
+
 static symbol *lookup(const char *name, symbol *start)
 {
    symbol *table = start;
+   unsigned h;
+
+   if (start == NULL) {
+      h = name_hash( name ) & (SYMTBL_SIZE-1);
+      table = symtbl[h];
+   }
+   
    while (table) {
       if (!strcmp(name, table->name)) return table;
       table = table->next;
    }
+
    return NULL;
 }
 
@@ -278,28 +297,38 @@ static symbol * new_symbol(const char *name)
    return sym;   
 }
 
-static void free_symbols(symbol **sym)
+static void free_symbols(symbol *sym)
 {
    symbol *curr, *next;
-   curr = *sym;
+   curr = sym;
 
    while (curr) {
-      if (curr->locals) free_symbols(&(curr->locals));
+      if (curr->locals) free_symbols(curr->locals);
       next = curr->next;
       free(curr);
       curr = next;
    }
+}
 
-   *sym = NULL;
+static void free_symtbl(void)
+{
+   int i;
+   for (i = 0; i < SYMTBL_SIZE; i++) {
+      free_symbols(symtbl[i]);
+      symtbl[i] = NULL;
+   }
 }
 
 static symbol *aquire(const char *name)
 {
-   symbol *sym = lookup(name, symbols);
+   unsigned h;
+
+   symbol *sym = lookup(name, NULL);
    if (!sym) {
+      h = name_hash( name ) & (SYMTBL_SIZE-1);
       sym = new_symbol(name);
-      sym->next = symbols;
-      symbols = sym;
+      sym->next = symtbl[h];
+      symtbl[h] = sym;
       symbol_count++;
    }
    return sym;
@@ -615,7 +644,7 @@ static value primary(char **p)
    }
    else if (isalpha(**p)) {
       ident(p, id);
-      sym = lookup(id, symbols);
+      sym = lookup(id, NULL);
       if (!sym) sym = reserve_label(id, NULL);
       skip_white(p);
       if (**p == LOCAL_LABEL_LETTER) {
@@ -1515,15 +1544,16 @@ static int directive(char **p, int pass)
 static int ismnemonic(const char *id)
 {
    char id1[ID_LEN];
+   int cmp;
    size_t i;
    
    strcpy(id1, id);
    upcase(id1);
-
    for (i=0; i<itbl_size; i++) {
-      if (!strcmp(id1, itbl[i].mn)) return 1;
+      cmp = strcmp(id, itbl[i].mn);
+      if (cmp <= 0) break;
    }
-   return 0;
+   return cmp == 0;
 }
 
 /* processes one statement or assembler instruction */
@@ -1646,22 +1676,36 @@ static int sym_cmp_val(const void *a, const void *b)
    return sa->value.v - sb->value.v;
 }
 
-static void list_symbols(void)
+static symbol **symtbl_to_array(void)
 {
-   symbol *sym;
+   symbol **tsym, *tsym2;
    symbol **sym_array, **sym_p;
-   int i;
 
    sym_array = sym_p = malloc(sizeof(symbol *) * ((size_t)symbol_count + 1));
-   if (!sym_array) return;
+   if (!sym_array) return NULL;
    
-   for (sym = symbols; sym; sym = sym->next) {
-      /* convert linked list to array */
-      *sym_p++ = sym;
+   for (tsym = symtbl; tsym < symtbl + SYMTBL_SIZE; tsym++ ) {
+      if (!*tsym) continue;
+      tsym2 = *tsym;
+      while (tsym2) {
+         *sym_p++ = tsym2;
+         tsym2 = tsym2->next;
+      }
    }
    *sym_p = NULL;
 
-   for (i = 1; i < 3; i++) {
+   return sym_array;   
+}
+
+static void list_symbols(void)
+{
+   symbol *sym, **sym_array, **sym_p;
+   int i;
+
+   sym_array = symtbl_to_array();
+   if (!sym_array) return;
+
+   for (i = 1; i <= 2; i++) {
       sym_p = sym_array;
    
       if (i == 1) {
@@ -1917,7 +1961,7 @@ ret2:
 ret1:
    free_files();
 ret0:
-   free_symbols(&symbols);
+   free_symtbl();
 
    if (errors) return EXIT_FAILURE;
    else return EXIT_SUCCESS;
