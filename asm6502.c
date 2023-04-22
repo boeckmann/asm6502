@@ -1631,6 +1631,31 @@ static int statement(char **p, int pass)
    return again;
 }
 
+static void byte_to_pchar(u8 w, char *p)
+{
+   u16 v;
+   v = (w >> 4) & 0xf;
+   p[0] = v + '0' + ((v > 9) ? 'A' - '9' - 1 : 0);
+   v = w & 0xf;
+   p[1] = v + '0' + ((v > 9) ? 'A' - '9' - 1 : 0);
+}
+
+static void word_to_pchar(u16 w, char *p)
+{
+   u16 v;
+   v = (w >> 12) & 0xf;
+   p[0] = v + '0' + ((v > 9) ? 'A' - '9' - 1 : 0);
+   v = (w >> 8) & 0xf;
+   p[1] = v + '0' + ((v > 9) ? 'A' - '9' - 1 : 0);
+   v = (w >> 4) & 0xf;
+   p[2] = v + '0' + ((v > 9) ? 'A' - '9' - 1 : 0);
+   v = w & 0xf;
+   p[3] = v + '0' + ((v > 9) ? 'A' - '9' - 1 : 0);
+}
+
+char list_addr_buf[20] = "            ";
+char list_code_buf[4] = "   ";
+
 static void list_statement(char *statement_start, unsigned short pc_start,
                            unsigned short oc_start, char *p, int skipped)
 {
@@ -1638,14 +1663,20 @@ static void list_statement(char *statement_start, unsigned short pc_start,
 
    if (!listing || list_skip_one) return;
 
-   if (oc_start < oc)
+   if (oc_start < oc) {
       /* output program counter, but only if we emitted code */
-      fprintf(list_file, "%04X  %04X  ", oc_start, pc_start);
+      word_to_pchar(oc_start, list_addr_buf);
+      word_to_pchar(pc_start, list_addr_buf + 6);
+      /*fprintf(list_file, "%04X  %04X  ", oc_start, pc_start);*/
+      fputs(list_addr_buf, list_file);
+   }
    else
       fputs("            ", list_file);
 
    while (oc_start < oc && count < 3) {
-      fprintf(list_file, "%02X ", (int)code[oc_start++] & 0xff);
+      byte_to_pchar(code[oc_start++] & 0xff, list_code_buf);
+      /*fprintf(list_file, "%02X ", (int)code[oc_start++] & 0xff);*/
+      fputs(list_code_buf, list_file);
       count++;
    }
 
@@ -1659,9 +1690,9 @@ static void list_statement(char *statement_start, unsigned short pc_start,
    }
    fprintf(list_file, "%6d", line);
    if (skipped)
-      fprintf(list_file, "- ");
+      fputs("- ", list_file);
    else
-      fprintf(list_file, ": ");
+      fputs(": ", list_file);
    fwrite(statement_start, 1, (int)(p - statement_start), list_file);
 
    fputs("\n", list_file);
@@ -1718,27 +1749,30 @@ static void list_symbols(void)
       sym_p = sym_array;
    
       if (i == 1) {
-         fprintf(list_file, "\n\n-- SYMBOLS BY NAME -------------------\n\n");
+         fputs("\n\n-- SYMBOLS BY NAME -------------------\n\n", list_file);
          qsort(sym_array, symbol_count, sizeof(symbol *), sym_cmp_name);
       }
       else {
-         fprintf(list_file, "\n\n-- SYMBOLS BY VALUE ------------------\n\n");
+         fputs("\n\n-- SYMBOLS BY VALUE ------------------\n\n", list_file);
          qsort(sym_array, symbol_count, sizeof(symbol *), sym_cmp_val);
       }
    
-      fprintf(list_file, "     HEX    DEC  NAME\n");
+      fputs("    HEX    DEC  NAME\n", list_file);
       for (; *sym_p; sym_p++) {
          sym = *sym_p;
-         fprintf(list_file, "%c%c  ", sym_kind_to_char(sym->kind),
-            sym_type_to_char(sym->value.t));
+         fputc(sym_kind_to_char(sym->kind), list_file);
+         fputc(sym_type_to_char(sym->value.t), list_file);
+         fputc(' ', list_file);
          if (DEFINED(sym->value)) {
             if (TYPE(sym->value) == TYPE_BYTE)
                fprintf(list_file, "  %02X  %5u",sym->value.v, sym->value.v);
             else
                fprintf(list_file, "%04X  %5u", sym->value.v, sym->value.v);
          }
-         else fprintf(list_file, "   ?      ?");
-         fprintf(list_file, "  %-32s\n", sym->name);
+         else fputs("   ?      ?", list_file);
+         fputs("  ", list_file);
+         fputs(sym->name, list_file);
+         fputs("\n", list_file);
       }
    }
 
