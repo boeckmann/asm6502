@@ -21,14 +21,13 @@ Copyright 2022-2023 by Bernd Boeckmann
 
        ASM6502 is a small two-pass assembler for the MOS Technology 6502
        microprocessor used in many home computers of the 8-bit era. It
-       consists of under 2K lines of C code and can be built with compilers
+       consists of under 3K lines of C code and can be built with compilers
        conformant to the C89 standard.
 
        ASM6502 implements some advanced features, like local labels, the
        ability to produce listing files, and the optimization of opcodes.
-       In its current state, it is a usable assembler confirmed to generate
-       the correct code for all supported instructions and addressing mode
-       combinations. Due to the small size, macros are not supported.
+       It is able to produce byte-exact replicas of the Commodore C64
+       Kernal and BASIC ROMs. The one big feature missing is macro support.
 
        The assembler outputs plain binary files.
 
@@ -75,12 +74,12 @@ Copyright 2022-2023 by Bernd Boeckmann
 
        The task of an assembler is to translate an _assembler
        source_ containing human readable _instructions_ to a _binary
-       representation_ a processor understands. This binary representation
-       is called _machine code_. There is a one-to-one mapping between the
-       human readable instructions contained in the assembler source and
-       the generated machine code.
+       representation_ the processor understands. This binary
+       representation is called _machine code_. There is a one-to-one
+       mapping between the human readable instructions contained in the
+       assembler source and the generated machine code.
 
-       All instructions a processor understands is given a name, called
+       Each instruction a processor understands is given a name, called
        _mnemonic_. This name is chosen so that it describes to the
        programmer what the instruction does. Every instruction is also
        assigned a numeric value, called the operation code or _opcode_.
@@ -117,9 +116,8 @@ Copyright 2022-2023 by Bernd Boeckmann
          0002  0002  E8               2: INX
 
        FPos indicates the position of the instructions regarding the output
-       file. PC represents the _memory location_ or _address_ the code
-       gets loaded to when executed. The executable code in memory is also
-       called _image_.
+       file. PC represents the _location_ or _address_ of the code while it
+       is executed.
 
        Let's further elaborate what the arguments to instructions may be.
        In the example above, `#42' is a numeric value that is directly used
@@ -127,14 +125,14 @@ Copyright 2022-2023 by Bernd Boeckmann
        the mode the processor operates in is called _immediate addressing_
        mode. The `INX' instruction above implicitly operates on a register
        called X. For this reason it is called _implicit addressing_. Often,
-       the argument specifies a memory location. This memory location may
-       be specified with the beginning of the address space as a reference.
-       In this case it is called _absolute addressing_ mode. If the memory
-       location is specified relative to some other location we call it
-       _relative addressing_ mode. Sometimes one does not want to encode a
-       fixed memory location into the machine instruction, but instead use
-       the content of some memory location as the address to operate on.
-       This is called _indirect addressing_.
+       the argument specifies a memory location. This memory location
+       may be referenced to the start of the address space. In this case
+       it is called _absolute addressing_ mode. If the memory location
+       is specified relative to some other location we call it _relative
+       addressing_ mode. Sometimes one does not want to encode a fixed
+       memory location into the machine instruction, but instead use the
+       content of some memory location as the address to operate on. This
+       is called _indirect addressing_.
 
        The sequence of instructions executed by the processor may be
        altered by the programmer utilizing special machine instructions.
@@ -170,7 +168,7 @@ Copyright 2022-2023 by Bernd Boeckmann
        referred to as _identifier_.
 
        Character sequences which by itself provide a value to the
-       assembler, like the character sequence `42', which represents the
+       assembler, like the character sequence `42' that represents the
        numeric value 42, are considered to be _literals_.
 
 4 Syntax and Semantics
@@ -199,10 +197,10 @@ Copyright 2022-2023 by Bernd Boeckmann
    4.3 Symbols
 
        The assembler distinguishes two types of case-sensitive symbols:
-       _labels_ and _variables_. A label stores the address of the current
-       instruction or directive. It is defined at the beginning of a line
-       by appending its name with a colon. The colon may be left out if the
-       label name is not an instruction mnemonic.
+       _labels_ and _variables_. A label stores the address of of the
+       instruction or data it is currently assembling. It is defined at the
+       beginning of a line by appending its name with a colon. The colon
+       may be left out if the label name is not an instruction mnemonic.
 
        A variable is defined by assigning an expression to it. In the
        following example, hello is a label, and CHROUT is a variable.
@@ -216,18 +214,19 @@ Copyright 2022-2023 by Bernd Boeckmann
        is that of the expression assigned to it, unless it is forward-
        referenced.
 
-       Forward-referenced means that a symbol can be used in expressions
+       Forward-referenced means that a symbol is used in an expression
        before it is defined. Forward-referenced symbols are _always_ of
        type word, regardless of what is assigned to them.
 
-       Labels may not be redefined. If a variable is assigned a value
-       multiple times, it must always be the same value. Otherwise, it is
-       an illegal redefinition.
+       If a variable is assigned a value multiple times, it must always be
+       the same value. Otherwise, it is an illegal redefinition. Labels may
+       not be defined more than once.
 
-       Symbols may be defined locally by prepending them with @. They are
-       associated with the previous non-local label defined. They may
-       be referenced within expressions locally by @name or with their
-       qualified name label@name outside their local scope. Example:
+       Variables and labels may be defined locally by prepending their name
+       with @. They are then associated with the previous non-local label
+       defined. They may be referenced within expressions locally by @name
+       or with their qualified name label@name outside their local scope.
+       Example:
 
                  jmp hello@l   ; fully qualified label reference
          hello:
@@ -265,12 +264,12 @@ Copyright 2022-2023 by Bernd Boeckmann
 
          'x'   ; byte typed ASCII character code of x
 
-       The special symbol @ returns the current value of the program
-       counter. The special symbol ? returns an undefined value of unknown
-       type.
+       The special symbol @ returns the address of the currently assembled
+       instruction. The special symbol ? returns an undefined value of
+       unknown type.
 
          ?     ; undefined value
-         @     ; current program counter
+         @     ; current address
 
        Label and variable names evaluate to their respective value.
 
@@ -295,7 +294,7 @@ Copyright 2022-2023 by Bernd Boeckmann
         -  comparison operators: ==, !=, <, >, <=, >=
 
         -  unary low < and high > byte select, lossless unary conversion
-           operators [b] and [w], unary logical negate .not
+           operators [b] and [w], boolean not .not
 
  4.4.3 Conversion operators
 
@@ -311,11 +310,11 @@ Copyright 2022-2023 by Bernd Boeckmann
        high-byte select operator > returns the high byte of a word-sized
        expression shifted eight bits to the right. It returns zero for
        byte-sized expressions. The resulting data type of both operators is
-       byte. If applied to an undefined argument the result is undefined.
+       byte. If applied to an undefined argument, the result is undefined.
 
  4.4.5 Logical Operators
 
-       The comparison operators and the logical negate operator return 1 if
+       The comparison operators and the boolean not operator return 1 if
        the comparison is true, else they return 0. The result is of type
        byte. If one or both arguments have an undefined value, the result
        is the undefined value.
@@ -328,7 +327,7 @@ Copyright 2022-2023 by Bernd Boeckmann
        operators, the result value is undefined. Type inference is
        performed as such that if any of the arguments is of type word, the
        result is of type word. The result is also of type word if it would
-       overflow the range of type byte.
+       otherwise overflow the range of type byte.
 
        Examples:
 
@@ -342,9 +341,10 @@ Copyright 2022-2023 by Bernd Boeckmann
        or none of them. A statement it either a variable definition, an
        instruction or a directive. Instructions and directives may be
        preceded by a label definition. Also, a label definition may stand
-       for its own. Conditional statements are .IF, .ELSE, and .ENDIF. Each
-       line may end with a comment. Comments are started by semicolon and
-       ignored by the assembler.
+       for its own. Conditional statements are .IF, .ELSE, and .ENDIF.
+       These may not be preceded by a label. Each line may end with a
+       comment. Comments are started by semicolon and ignored by the
+       assembler.
 
          start:              ; line consisting only of a label
          loop: BNE loop      ; label and instruction
@@ -374,7 +374,9 @@ Copyright 2022-2023 by Bernd Boeckmann
  4.6.2 .BYTE directive
 
        Produces one or more output bytes. The arguments are separated by a
-       comma. Strings enclosed by " may also be used.
+       comma. Numeric expressions or strings may be used as arguments. The
+       values of numeric expressions must fit into a byte. Strings must be
+       enclosed by ".
 
        Example:
 
@@ -384,10 +386,11 @@ Copyright 2022-2023 by Bernd Boeckmann
 
  4.6.3 .ECHO directive
 
-       Prints the arguments to standard output. Processed on second
-       pass. The arguments may either be strings or numeric expressions,
-       separated by comma. Numeric expressions may be prefixed by the
-       format specifier [$] to output the number in hexadecimal format.
+       Prints the arguments to standard output. This is done on the second
+       assembler pass. The arguments may either be strings or numeric
+       expressions, separated by comma. Numeric expressions may be prefixed
+       by the format specifier [$] to output the number in hexadecimal
+       format. Otherwise it is printed in decimal.
 
        Example:
 
@@ -398,7 +401,7 @@ Copyright 2022-2023 by Bernd Boeckmann
        Starting from the current position of the output file, emits as many
        bytes as given by the first argument. If the second argument is
        given, the region is filled with its byte-sized value. Otherwise, it
-       is filled with zero. The program counter is increased accordingly.
+       is filled with zero. The address counter @ is increased accordingly.
 
        Example:
 
@@ -408,14 +411,15 @@ Copyright 2022-2023 by Bernd Boeckmann
  4.6.5 .IF, .ELSE and .ENDIF directives
 
        Conditionally assembles code depending on the value of the argument
-       to .IF. If it is non-zero the code between .IF and .ENDIF is
+       to .IF. If it is non-zero, the code between .IF and .ENDIF is
        assembled, or between .IF and .ELSE, if .ELSE is given. If the
-       argument to .IF is zero the code between the corresponding .ELSE and
-       .ENDIF is assembled, if .ELSE is specified. Otherwise the source
-       between .IF and .ENDIF is skipped.
+       argument to .IF is zero and .ELSE is specified, the code between
+       .ELSE and .ENDIF is assembled. Otherwise the source between .IF and
+       .ENDIF is skipped.
 
-       It is an error if the argument to .IF yields an undefined value. The
-       conditional directives may _not_ be preceded by a label.
+       It is an error if the argument to .IF yields an undefined value in
+       pass one. The conditional directives may _not_ be preceded by a
+       label.
 
        Example:
 
@@ -432,8 +436,7 @@ Copyright 2022-2023 by Bernd Boeckmann
  4.6.6 .INCLUDE directive
 
        Substitutes the directive with the contents of a file given by the
-       argument. As a convention the extension of include-files should be
-       .i65.
+       argument for processing by the assembler.
 
        Example:
 
@@ -449,17 +452,15 @@ Copyright 2022-2023 by Bernd Boeckmann
        If listing generation is disabled when an .INCLUDE statement is
        processed, .LIST inside the included file has no effect.
 
-       The listing generation flag is restored when the processing of an
-       included file finished. If a .NOLIST statement is contained in an
-       include file and the listing is activated for the parent file,
-       listing generation is resumed after processing the include file from
-       the line after the .INCLUDE line.
+       A .NOLIST inside an include file does not propagate to the parent
+       file.
 
  4.6.8 .ORG directive
 
-       Sets the current program counter to the numeric value of the
-       argument. Does not modify the offset into the output file. This
-       means that .ORG can not be used to `jump around' in the output file.
+       Sets the address counter for the currently processed instruction
+       to the numeric value of the argument. Does not modify the offset
+       into the output file. This means that .ORG can not be used to `jump
+       around' in the output file.
 
        Example:
 
@@ -534,11 +535,11 @@ Copyright 2022-2023 by Bernd Boeckmann
 
  4.7.7 Zero-page X and Zero-page Y addressing
 
-       The address is encoded in the byte following the opcode and
-       displaced by the contents for the X or Y register.
+       The address is encoded in the byte following the opcode displaced by
+       the contents for the X or Y register.
 
-         LDA $47,X ; load contents of address $47 displaced by X
-         LDX >$4711,Y ; get contents of address $47 displaced by Y into X
+         LDA $47,X ; A = contents of address $47 displaced by X
+         LDX $11,Y ; X = load contents of address $47 displaced by Y
 
  4.7.8 Indirect addressing
 
@@ -549,15 +550,13 @@ Copyright 2022-2023 by Bernd Boeckmann
 
          JMP ($4711)
 
-       The following one is a syntax error because the assembler assumes
+       The following one is a syntax error, because the assembler assumes
        indirect addressing mode instead of a sub-expression grouped by
        parentheses:
 
          JMP (2+3)*1000
 
-       If one wants to start an expression with an opening parentheses,
-       while not indicating indirect addressing to the assembler, one can
-       write:
+       To correct this, you may rewrite it as:
 
          JMP +(2+3)*1000
 
@@ -997,4 +996,4 @@ A Instruction Reference
 
          98         tya
 
-[Di 18 Apr 16:44:54 2023]
+[So 23 Apr 19:33:58 2023]
