@@ -1549,15 +1549,15 @@ static int directive(char **p, int pass)
 
 static int ismnemonic(const char *id)
 {
-   char id1[ID_LEN];
+   char idupcase[ID_LEN];
    int l = 0, r = sizeof(itbl) / sizeof(idesc), x;
    int cmp;
-   strcpy(id1, id);
-   upcase(id1);
+   strcpy(idupcase, id);
+   upcase(idupcase);
 
    while (r >= l) {
       x = l + ((r - l) >> 2);
-      cmp = strcmp(id, itbl[x].mn);
+      cmp = strcmp(idupcase, itbl[x].mn);
       if (cmp == 0) return 1;
       else if (cmp > 0) l = x + 1;
       else r = x - 1;
