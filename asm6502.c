@@ -1416,7 +1416,7 @@ static void directive_binary(char **p, int pass)
    fclose(file);
 }
 
-static void directive_if(char **p, int pass)
+static void directive_if(char **p)
 {
    value v;
 
@@ -1437,7 +1437,7 @@ static void directive_if(char **p, int pass)
    if_stack_count++;
 }
 
-static void directive_else(char **p, int pass)
+static void directive_else(void)
 {
    if (!if_stack_count) error(ERR_MISSING_IF);
 
@@ -1445,7 +1445,7 @@ static void directive_else(char **p, int pass)
       process_statements = !if_stack[if_stack_count-1].condition_met;
 }
 
-static void directive_endif(char **p, int pass)
+static void directive_endif(void)
 {
    if (!if_stack_count) error(ERR_MISSING_IF);
 
@@ -1786,7 +1786,7 @@ static void list_filename(char *fn)
    }
 }
 
-static int conditional_statement(char **p, int pass)
+static int conditional_statement(char **p)
 {
    char id[ID_LEN];
    char *pt = *p;
@@ -1799,15 +1799,15 @@ static int conditional_statement(char **p, int pass)
    ident_upcase(p, id);
 
    if (!strcmp(id, "IF")) {
-      directive_if(p, pass);
+      directive_if(p);
       return 1;
    }
    else if (!strcmp(id, "ELSE")) {
-      directive_else(p, pass);
+      directive_else();
       return 1;
    }
    else if (!strcmp(id, "ENDIF")) {
-      directive_endif(p, pass);
+      directive_endif();
       return 1;
    }
 
@@ -1854,7 +1854,7 @@ static void pass(char **p, int pass)
          pc_start = pc;
          oc_start = oc;
 
-         if (conditional_statement(p, pass)) {
+         if (conditional_statement(p)) {
             conditional = 1;
          }
          else if (process_statements) {
