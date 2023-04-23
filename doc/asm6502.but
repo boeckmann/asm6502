@@ -156,7 +156,7 @@ A character enclosed by \cw{'} is evaluated to its ASCII value.
 
 \c 'x'   ; byte typed ASCII character code of x
 
-The special symbol \cw{@} returns the address of the currently assembled instruction. The special symbol \cw{?} returns an undefined value of unknown type.
+The address counter symbol \cw{@} returns the address of the currently assembled instruction. The symbol \cw{?} returns an undefined value of unknown type.
 
 \c ?     ; undefined value
 \c @     ; current address

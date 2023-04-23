@@ -264,8 +264,8 @@ Copyright 2022-2023 by Bernd Boeckmann
 
          'x'   ; byte typed ASCII character code of x
 
-       The special symbol @ returns the address of the currently assembled
-       instruction. The special symbol ? returns an undefined value of
+       The address counter symbol @ returns the address of the currently
+       assembled instruction. The symbol ? returns an undefined value of
        unknown type.
 
          ?     ; undefined value
@@ -996,4 +996,4 @@ A Instruction Reference
 
          98         tya
 
-[So 23 Apr 19:33:58 2023]
+[So 23 Apr 19:35:37 2023]
