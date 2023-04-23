@@ -504,7 +504,7 @@ Copyright 2022-2023 by Bernd Boeckmann
        Relative addressing is only used by branch instructions. The branch
        offset in the range of -128 to 127 is encoded by the byte following
        the opcode. The assembler interprets the argument, which may be any
-       numeric expression, relative to the current program counter.
+       numeric expression, relative to the current address counter.
 
          loop: BNE loop
 
@@ -996,4 +996,4 @@ A Instruction Reference
 
          98         tya
 
-[So 23 Apr 19:35:37 2023]
+[So 23 Apr 19:39:01 2023]
