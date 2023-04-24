@@ -267,14 +267,14 @@ noreturn static void error_ext(int err, const char* msg)
    longjmp(error_jmp, err);
 }
 
-noreturn static void error_abort()
+noreturn static void error_abort(void)
 {
    errors++;
    error_type = ERROR_ABORT;
    longjmp(error_jmp, -1);   
 }
 
-static unsigned name_hash( const char *name )
+static unsigned name_hash(const char *name)
 {
    unsigned h = 0;
    while ( *name ) {
@@ -379,8 +379,7 @@ static char sym_kind_to_char(u8 kind)
 
 static char sym_type_to_char(u8 typ)
 {
-   if ((typ & 0x3f) == 0) return '?';
-   switch (typ & 0x3f) {
+   switch (typ) {
       case TYPE_BYTE:
          return 'b';
       case TYPE_WORD:
@@ -1523,11 +1522,23 @@ static void directive_echo(char **p, int pass)
    echo(p);
 }
 
-static void directive_abort(char **p, int pass)
+static void directive_diagnostic(char **p, int pass, int level)
 {
-   printf("%s:%d: abort: ", current_file->filename, line);
-   echo(p);
-   error_abort();
+   /* warnings and errors are processed at pass 1 */
+   
+   if (level == 1) {
+      printf("%s:%d: abort: ", current_file->filename, line);
+      echo(p);
+      error_abort();
+   }
+   else {
+      if (pass == 2) {
+         skip_to_eol(p);
+         return;
+      }
+      printf("%s:%d: warning: ", current_file->filename, line);      
+      echo(p);
+   }
 }
 
 static int directive(char **p, int pass)
@@ -1562,8 +1573,11 @@ static int directive(char **p, int pass)
    else if (!strcmp(id, "ECHO")) {
       directive_echo(p, pass);
    }
-   else if (!strcmp(id, "ABORT")) {
-      directive_abort(p, pass);
+   else if (!strcmp(id, "ERROR")) {
+      directive_diagnostic(p, pass, 1);
+   }
+   else if (!strcmp(id, "WARNING")) {
+      directive_diagnostic(p, pass, 0);
    }
    else if (!strcmp(id, "NOLIST")) {
       listing = 0;
@@ -1970,7 +1984,7 @@ static char *source_filename = NULL;
 static char *listing_filename = NULL;
 static char *output_filename = NULL;
 
-static int parse_args(int argc, char *argv[])
+static int parse_args(char *argv[])
 {
    char *p;
    value v;
@@ -1991,7 +2005,7 @@ static int parse_args(int argc, char *argv[])
          } 
          else return 0;        
       }
-      else if ((p = strchr(*argv, '='))) {
+      else if ((p = strchr(*argv, '=')) != NULL) {
          /* variable definition */
          *p++ = 0;
          if (!setjmp(error_jmp)) {
@@ -2017,9 +2031,10 @@ void print_usage(void)
       "Usage: asm6502 [-q] input -o output [-l listing] [VAR=number]...\n\n"
       "  -q             be quiet, unless an error occured\n"
       "  -o output      set output file name\n"
-      "  -l listing     set listing file name\n\n"
-      "Variables may be defined by assigning numbers to them. The number\n"
-      "format equals that of the assebmler source.\n\n"
+      "  -l listing     set optional listing file name\n\n"
+      "Variables defined via command line are are known to the assembler\n"
+      "when assembling files. The numbers are parsed like number literals\n"
+      "in assembler source.\n\n"
    );
 }
 
@@ -2029,9 +2044,9 @@ int main(int argc, char *argv[])
 
    flag_debug = (getenv("DEBUG") != NULL);
 
-   if (!parse_args(argc, argv)) {
+   if (!parse_args(argv)) {
       print_usage();
-      return EXIT_FAILURE;
+      return (argc > 1) ? EXIT_FAILURE : EXIT_SUCCESS;
    }
 
    if (!strcmp(source_filename, output_filename)) {
