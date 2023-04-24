@@ -131,6 +131,8 @@ typedef struct symbol {
    u8 flags;
    struct symbol *next;
    struct symbol *locals;  /* local subdefinitions */
+   char *filename;
+   int line;
 } symbol;
 
 #define SYMTBL_SIZE 1024
@@ -310,9 +312,12 @@ static symbol * new_symbol(const char *name)
    sym->value.v = 0;
    sym->value.t = 0;
    sym->value.defined = 0;
+
    sym->kind = 0;
    sym->flags = 0;
    sym->locals = NULL;
+   sym->filename = NULL;
+   sym->line = 0;
    return sym;   
 }
 
@@ -424,7 +429,8 @@ static symbol * define_label(const char *id, u16 v, symbol *parent)
    sym->value.t = ((TYPE(sym->value) == TYPE_WORD) ? TYPE_WORD : NUM_TYPE(v));
    sym->value.defined = 1;
    sym->kind = KIND_LBL;
-
+   sym->filename = current_file->filename;
+   sym->line = line;
    return sym;
 }
 
@@ -451,6 +457,8 @@ static void define_variable(const char *id, const value v, symbol *parent)
    if (DEFINED(sym->value) && sym->value.v != v.v) error(ERR_REDEF);
    sym->value.v = v.v;
    sym->value.defined = v.defined;
+   sym->filename = current_file->filename;
+   sym->line = line;
 
    /* if the type is already set do not change it */
    if (!TYPE(sym->value)) sym->value.t = v.t;
@@ -522,7 +530,7 @@ static int starts_with(char *text, char *s)
 
 static value number(char **p)
 {
-   value num= {0};
+   value num = {0};
    char *pt = *p;
    u8 typ;
 
@@ -612,7 +620,7 @@ static value expr(char**);
 
 static value primary(char **p)
 {
-   value res;
+   value res = {0};
    char id[ID_LEN];
    symbol *sym, *local_sym;
 
@@ -626,8 +634,6 @@ static value primary(char **p)
    }
    else if (**p == '?') {
       (*p)++;
-      res.v = 0;
-      res.t = 0;
    }
    else if (**p == LOCAL_LABEL_LETTER && isalnum(*(*p+1))) {  /* local label*/
       (*p)++;
@@ -635,10 +641,6 @@ static value primary(char **p)
       sym = lookup(id, current_label->locals);
       if (sym) {
          res = sym->value;
-      }
-      else {
-         res.v = 0;
-         res.t = 0;
       }
    }
    else if (**p == PROGRAM_COUNTER_LETTER) {
@@ -1525,9 +1527,9 @@ static void directive_echo(char **p, int pass)
 static void directive_diagnostic(char **p, int pass, int level)
 {
    /* warnings and errors are processed at pass 1 */
-   
+
    if (level == 1) {
-      printf("%s:%d: abort: ", current_file->filename, line);
+      printf("%s:%d: error: ", current_file->filename, line);
       echo(p);
       error_abort();
    }
@@ -1699,7 +1701,7 @@ static void word_to_pchar(u16 w, char *p)
    p[3] = v + '0' + ((v > 9) ? 'A' - '9' - 1 : 0);
 }
 
-char list_addr_buf[20] = "            ";
+char list_addr_buf[20] = "           ";
 char list_code_buf[4] = "   ";
 
 static void list_statement(char *statement_start, u16 pc_start,
@@ -1709,15 +1711,21 @@ static void list_statement(char *statement_start, u16 pc_start,
 
    if (!listing || list_skip_one) return;
 
+   fprintf(list_file, "%5d", line);
+   if (skipped)
+      fputs("- ", list_file);
+   else
+      fputs(": ", list_file);
+
    if (oc_start < oc) {
       /* output program counter, but only if we emitted code */
       word_to_pchar(oc_start, list_addr_buf);
-      word_to_pchar(pc_start, list_addr_buf + 6);
+      word_to_pchar(pc_start, list_addr_buf + 5);
       /*fprintf(list_file, "%04X  %04X  ", oc_start, pc_start);*/
       fputs(list_addr_buf, list_file);
    }
    else
-      fputs("            ", list_file);
+      fputs("           ", list_file);
 
    while (oc_start < oc && count < 3) {
       byte_to_pchar(code[oc_start++] & 0xff, list_code_buf);
@@ -1734,11 +1742,7 @@ static void list_statement(char *statement_start, u16 pc_start,
          count++;
       }
    }
-   fprintf(list_file, "%6d", line);
-   if (skipped)
-      fputs("- ", list_file);
-   else
-      fputs(": ", list_file);
+   fputs("  ", list_file);
    fwrite(statement_start, 1, (int)(p - statement_start), list_file);
 
    fputs("\n", list_file);
@@ -1783,10 +1787,21 @@ static symbol **symtbl_to_array(void)
    return sym_array;   
 }
 
+static void fill_dots(char *s, int len)
+{
+   int i;
+   for (i = 0; i < len; i++) {
+      s[i] = (i & 1) ? '.' : ' ';
+   }
+}
+
 static void list_symbols(void)
 {
    symbol *sym, **sym_array, **sym_p;
+   char namebuf[ID_LEN+1];
    int i;
+
+   namebuf[ID_LEN] = '\0';
 
    sym_array = symtbl_to_array();
    if (!sym_array) return;
@@ -1795,29 +1810,44 @@ static void list_symbols(void)
       sym_p = sym_array;
    
       if (i == 1) {
-         fputs("\n\n-- SYMBOLS BY NAME -------------------\n\n", list_file);
+         fputs("\n\nS Y M B O L S   B Y   N A M E\n\n", list_file);
          qsort(sym_array, symbol_count, sizeof(symbol *), sym_cmp_name);
       }
       else {
-         fputs("\n\n-- SYMBOLS BY VALUE ------------------\n\n", list_file);
+         fputs("\n\nS Y M B O L S   B Y   V A L U E\n\n", list_file);
          qsort(sym_array, symbol_count, sizeof(symbol *), sym_cmp_val);
       }
    
-      fputs("    HEX    DEC  NAME\n", list_file);
+      fputs("NAME                              HEX    DEC  "
+            "SYM TYPE  WHERE\n", list_file);
       for (; *sym_p; sym_p++) {
          sym = *sym_p;
-         fputc(sym_kind_to_char(sym->kind), list_file);
-         fputc(sym_type_to_char(sym->value.t), list_file);
-         fputc(' ', list_file);
+
+         fill_dots(namebuf, ID_LEN);
+         memcpy(namebuf, sym->name, strlen(sym->name));
+         fputs(namebuf, list_file);
+
          if (DEFINED(sym->value)) {
             if (TYPE(sym->value) == TYPE_BYTE)
-               fprintf(list_file, "  %02X  %5u",sym->value.v, sym->value.v);
+               fprintf(list_file, "   %02X  %5u  ",sym->value.v, sym->value.v);
             else
-               fprintf(list_file, "%04X  %5u", sym->value.v, sym->value.v);
+               fprintf(list_file,  " %04X  %5u  ", sym->value.v, sym->value.v);
          }
-         else fputs("   ?      ?", list_file);
-         fputs("  ", list_file);
-         fputs(sym->name, list_file);
+         else fputs("    ?      ?  ", list_file);
+
+         if (sym->kind == KIND_LBL) fputs("LBL ", list_file);
+         else fputs("VAR ", list_file);
+         /*fputc(sym_kind_to_char(sym->kind), list_file);*/
+
+         if (sym->value.t == TYPE_BYTE) fputs("BYTE  ", list_file);
+         else if (sym->value.t == TYPE_WORD) fputs("WORD  ", list_file);
+         else fputs("?     ", list_file);
+         /*fputc(sym_type_to_char(sym->value.t), list_file);
+         fputs("  ", list_file);*/
+
+         if (sym->filename) {
+            fprintf(list_file, "%s:%d", sym->filename, sym->line);
+         }
          fputs("\n", list_file);
       }
    }
@@ -1828,7 +1858,7 @@ static void list_symbols(void)
 static void list_filename(char *fn)
 {
    if (listing) {
-      fprintf(list_file, "                          FILE: %s\n", fn);
+      fprintf(list_file, " FILE: %s\n", fn);
    }
 }
 
@@ -1973,9 +2003,11 @@ static int init_listing(char *fn)
    tm = localtime(&t);
    strftime(ts, sizeof(ts), "%Y-%m-%d %H:%M", tm);
 
-   fprintf(list_file, "ASM6502 LISTING FOR %s @ %s\n\n",
-      current_file->filename, ts);
-   fprintf(list_file, "FPos  PC    Code          Line# Assembler text\n");
+   fprintf(list_file, "ASM6502        PROGRAM LISTING AND SYMBOL TABLE        "
+      "DATE: %s\n\n"
+      "MAIN INPUT FILE: %s\n\n",
+      ts, current_file->filename);
+   fprintf(list_file, " Line# FPos PC    Code           Source\n");
 
    return 1;
 }
