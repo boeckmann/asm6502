@@ -232,8 +232,9 @@ static char* err_msg[] = {
    "too many if nesting levels"
 };
 
-#define ERROR_NORM 1
-#define ERROR_EXT  2 /* extended error with additional message */
+#define ERROR_NORM  1
+#define ERROR_EXT   2 /* extended error with additional message */
+#define ERROR_ABORT 3 /* .abort directive */
 
 static char error_hint[128];
 static int errors = 0;
@@ -254,6 +255,13 @@ noreturn static void error_ext(int err, const char* msg)
    error_type = ERROR_EXT;
    strncpy(error_hint, msg, sizeof(error_hint) - 1);
    longjmp(error_jmp, err);
+}
+
+noreturn static void error_abort()
+{
+   errors++;
+   error_type = ERROR_ABORT;
+   longjmp(error_jmp, -1);   
 }
 
 static unsigned name_hash( const char *name )
@@ -1453,15 +1461,10 @@ static void directive_endif(void)
    process_statements = if_stack[if_stack_count].process_statements;
 }
 
-static void directive_echo(char **p, int pass)
+static void echo(char **p)
 {
    value v;
    int next, print_hex;
-
-   if (pass == 1) {
-      skip_to_eol(p);
-      return;
-   }
 
    do {
       next = 0;
@@ -1498,7 +1501,23 @@ static void directive_echo(char **p, int pass)
    }
    while (next);
 
-   puts("");
+   puts("");   
+}
+
+static void directive_echo(char **p, int pass)
+{
+   if (pass == 1) {
+      skip_to_eol(p);
+      return;
+   }
+   echo(p);
+}
+
+static void directive_abort(char **p, int pass)
+{
+   printf("%s:%d: abort: ", current_file->filename, line);
+   echo(p);
+   error_abort();
 }
 
 static int directive(char **p, int pass)
@@ -1514,14 +1533,14 @@ static int directive(char **p, int pass)
       if (UNDEFINED(v)) error (ERR_UNDEF);
       pc = v.v;
    }
-   else if (!strcmp(id, "FILL")) {
-      directive_fill(p, pass);
-   }
    else if (!strcmp(id, "BYTE")) {
       directive_byte(p, pass);
    }
    else if (!strcmp(id, "WORD")) {
       directive_word(p, pass);
+   }
+   else if (!strcmp(id, "FILL")) {
+      directive_fill(p, pass);
    }
    else if (!strcmp(id, "INCLUDE")) {
       directive_include(p, pass);
@@ -1532,6 +1551,9 @@ static int directive(char **p, int pass)
    }
    else if (!strcmp(id, "ECHO")) {
       directive_echo(p, pass);
+   }
+   else if (!strcmp(id, "ABORT")) {
+      directive_abort(p, pass);
    }
    else if (!strcmp(id, "NOLIST")) {
       listing = 0;
@@ -1894,7 +1916,7 @@ static void pass(char **p, int pass)
       if (error_type == ERROR_NORM)
          printf("%s:%d: error: %s\n", current_file->filename, 
             line, err_msg[err]);
-      else
+      else if (error_type == ERROR_EXT)
          printf("%s:%d: error: %s %s\n", current_file->filename, line,
             err_msg[err], error_hint);
    }

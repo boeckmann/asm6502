@@ -99,15 +99,15 @@ The following chapter describes the data model and the syntax accepted by the as
 
 \H{input-files}Input Files
 
-Input files should have \cw{.a65} as extension to distinguish it from files written for other assemblers.  Include-files should have \cw{.i65} as extension. The files should be encoded in the ASCII or UTF-8 character sets.
+Input files should have \cw{.a65} as extension to distinguish it from files written for other assemblers. The files should be encoded in the ASCII or UTF-8 character sets.
 
 \H{data-types}Data Types
 
 Two data types are known to the assembler:
 
-\b 8-bit \e{byte} storing numbers of value 0 to 255.
+\b \e{byte}: 8-bit in size, storing whole numbers between 0 to 255 inclusive.
 
-\b 16-bit \e{word} storing positive numbers of value 0 to 65535. Negative numbers from -32768 to -1 are stored in two-complement representation.
+\b \e{word}: 16-bit in size, storing positive whole numbers between 0 to 65535. Negative numbers may also be stored in the range from -32768 to -1. Negative numbers are stored in two-complement representation.
 
 \H{symbols}Symbols
 
