@@ -1,5 +1,3 @@
-X = 3
-
-.if X > 2
-	.abort "X may not be larger than 2, but is ", X
+.if X <= 10
+	.abort "X must be larger than 10, but is ", X
 .endif

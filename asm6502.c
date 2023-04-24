@@ -57,7 +57,8 @@
 
 #include "asm6502.h"
 
-static int debug = 0;      /* set DEBUG env variable to enable debug output */      
+static int flag_debug = 0;      /* set DEBUG env variable to enable debug output */      
+static int flag_quiet = 0;
 
 static unsigned char *code = NULL;  /* holds the emitted code */
 static int line;                    /* currently processed line number */
@@ -114,7 +115,8 @@ static int process_statements = 1;
 /* the value may be undefined */
 typedef struct value {
    u16 v;   /* the numeric value */
-   u8  t;   /* type (none, byte or word) and state (defined or undefined) */
+   u8  t;   /* type (none, byte or word) */
+   u8  defined;   /* defined or undefined */
 } value;
 
 #define TYPE_NONE  0
@@ -154,21 +156,29 @@ int if_stack_count = 0;
 #define IS_VAR(x) (((x).kind & KIND_VAR) != 0)
 
 /* value specific preprocessor directives */
-#define VALUE_DEFINED 0x40
-#define DEFINED(x) (((x).t & VALUE_DEFINED) != 0)
-#define UNDEFINED(x) (((x).t & VALUE_DEFINED) == 0)
-#define SET_DEFINED(v) ((v).t = ((v).t | VALUE_DEFINED))
-#define SET_UNDEFINED(v) ((v).t = (v).t & 0x3f);
+#define DEFINED(x) (((x).defined) != 0)
+#define UNDEFINED(x) (((x).defined) == 0)
+#define SET_DEFINED(v) ((v).defined = 1)
+#define SET_UNDEFINED(v) ((v).defined = 0)
+
 #define INFERE_DEFINED(a,b) \
-          if (UNDEFINED(a) || UNDEFINED(b)) { SET_UNDEFINED(a); } \
-          else { SET_DEFINED(a); }
+         if (UNDEFINED(a) || UNDEFINED(b)) { \
+            SET_UNDEFINED(a); \
+         } \
+         else { \
+            SET_DEFINED(a); \
+         }
 
 /* type specific preprocessor directives */
-#define TYPE(v) ((v).t & 0x3f)
-#define SET_TYPE(v, u) ((v).t = ((v).t & VALUE_DEFINED) | (u))
+#define TYPE(v) ((v).t)
+#define SET_TYPE(v, u) ((v).t = (u))
+
 #define NUM_TYPE(x) (((x) < 0x100) ? TYPE_BYTE : TYPE_WORD)
-#define INFERE_TYPE(a,b) (((a).v >= 0x100) || ((b).v >= 0x100)) ? \
-          SET_TYPE((a), TYPE_WORD) : SET_TYPE((a), MAXINT(TYPE(a),(TYPE(b))))
+
+#define INFERE_TYPE(a,b) \
+         (((a).v >= 0x100) || ((b).v >= 0x100)) \
+            ? SET_TYPE((a), TYPE_WORD) \
+            : SET_TYPE((a), MAXINT(TYPE(a),(TYPE(b))))
 
 static char* err_msg[] = {
    "",
@@ -299,6 +309,7 @@ static symbol * new_symbol(const char *name)
    strcpy(sym->name, name);
    sym->value.v = 0;
    sym->value.t = 0;
+   sym->value.defined = 0;
    sym->kind = 0;
    sym->flags = 0;
    sym->locals = NULL;
@@ -411,8 +422,8 @@ static symbol * define_label(const char *id, u16 v, symbol *parent)
       error(ERR_REDEF);
 
    sym->value.v = v;
-   sym->value.t = ((TYPE(sym->value) == TYPE_WORD) ? TYPE_WORD : NUM_TYPE(v))
-                | VALUE_DEFINED;
+   sym->value.t = ((TYPE(sym->value) == TYPE_WORD) ? TYPE_WORD : NUM_TYPE(v));
+   sym->value.defined = 1;
    sym->kind = KIND_LBL;
 
    return sym;
@@ -440,13 +451,10 @@ static void define_variable(const char *id, const value v, symbol *parent)
    /* if already defined make sure the value did not change */
    if (DEFINED(sym->value) && sym->value.v != v.v) error(ERR_REDEF);
    sym->value.v = v.v;
+   sym->value.defined = v.defined;
 
    /* if the type is already set do not change it */
-   if (TYPE(sym->value)) {
-      /* if (NUM_TYPE(v.v) > TYPE(sym->value)) error(ERR_REDEF); */
-      if (DEFINED(v)) SET_DEFINED(sym->value);
-   }
-   else sym->value.t = v.t;
+   if (!TYPE(sym->value)) sym->value.t = v.t;
 
    /* if previously defined as label make it word sized */
    if (IS_LBL(*sym)) SET_TYPE(sym->value, TYPE_WORD);
@@ -515,7 +523,7 @@ static int starts_with(char *text, char *s)
 
 static value number(char **p)
 {
-   value num= {0,0};
+   value num= {0};
    char *pt = *p;
    u8 typ;
 
@@ -637,14 +645,16 @@ static value primary(char **p)
    else if (**p == PROGRAM_COUNTER_LETTER) {
       (*p)++;
       res.v = pc;
-      res.t = TYPE_WORD | VALUE_DEFINED;
+      SET_TYPE(res, TYPE_WORD);
+      SET_DEFINED(res);
    }
    else if (**p == '\'') {
       (*p)++;
       if (IS_END(**p) || (**p < 0x20)) error(ERR_CHR);
 
       res.v = **p;
-      res.t = TYPE_BYTE | VALUE_DEFINED;
+      SET_TYPE(res, TYPE_BYTE);
+      SET_DEFINED(res);
 
       (*p)++;
       if (**p != '\'') error(ERR_CHR);
@@ -1391,7 +1401,7 @@ static void directive_binary(char **p, int pass)
    if (!file) error(ERR_OPEN);
 
    size = file_size(file);
-   count.v = (unsigned short)size;
+   count.v = (u16)size;
 
    skip_white(p);
    if (**p == ',') {
@@ -1409,8 +1419,8 @@ static void directive_binary(char **p, int pass)
       fclose(file);
       return;
    }
-   if (skip.v + count.v > (unsigned short)size) {
-      count.v = (unsigned short)size - skip.v;
+   if (skip.v + count.v > (u16)size) {
+      count.v = (u16)size - skip.v;
    }
 
    if (pass == 2) {
@@ -1678,8 +1688,8 @@ static void word_to_pchar(u16 w, char *p)
 char list_addr_buf[20] = "            ";
 char list_code_buf[4] = "   ";
 
-static void list_statement(char *statement_start, unsigned short pc_start,
-                           unsigned short oc_start, char *p, int skipped)
+static void list_statement(char *statement_start, u16 pc_start,
+                           u16 oc_start, char *p, int skipped)
 {
    int count = 0;
 
@@ -1843,8 +1853,8 @@ static void pass(char **p, int pass)
    
    char *statement_start;
    asm_file *last_file;
-   unsigned short oc_start;
-   unsigned short pc_start;
+   u16 oc_start;
+   u16 pc_start;
    int conditional;
 
    pc = 0;  /* initialize program counter to zero */
@@ -1922,7 +1932,7 @@ static void pass(char **p, int pass)
    }
 }
 
-static int save_code(const char *fn, const unsigned char *data, int len)
+static int save_code(const char *fn, const u8 *data, int len)
 {
    FILE *f = fopen(fn, "wb");
    if (!f) return 0;
@@ -1956,28 +1966,85 @@ static int init_listing(char *fn)
    return 1;
 }
 
+static char *source_filename = NULL;
+static char *listing_filename = NULL;
+static char *output_filename = NULL;
+
+static int parse_args(int argc, char *argv[])
+{
+   char *p;
+   value v;
+
+   argv++;
+   while (*argv) {
+      if (**argv == '/' || **argv == '-') {
+         if (!strcmp(*argv+1, "q")) flag_quiet++;
+         else if (!strcmp(*argv+1, "o")) {
+            argv++;
+            if (!*argv) return 0;
+            output_filename = *argv;
+         }          
+         else if (!strcmp(*argv+1, "l")) {
+            argv++;
+            if (!*argv) return 0;
+            listing_filename = *argv;
+         } 
+         else return 0;        
+      }
+      else if ((p = strchr(*argv, '='))) {
+         /* variable definition */
+         *p++ = 0;
+         if (!setjmp(error_jmp)) {
+            v = number(&p);
+            define_variable(*argv, v, NULL);            
+         }
+         else return 0;
+      }
+      else {
+         /* source filename */
+         if (source_filename) return 0;
+         source_filename = *argv;
+      }
+
+      argv++;
+   }
+   return source_filename != NULL && output_filename != NULL;
+}
+
+void print_usage(void)
+{
+   printf(
+      "Usage: asm6502 [-q] input -o output [-l listing] [VAR=number]...\n\n"
+      "  -q             be quiet, unless an error occured\n"
+      "  -o output      set output file name\n"
+      "  -l listing     set listing file name\n\n"
+      "Variables may be defined by assigning numbers to them. The number\n"
+      "format equals that of the assebmler source.\n\n"
+   );
+}
+
 int main(int argc, char *argv[])
 {
    char *ttext;
 
-   debug = (getenv("DEBUG") != NULL);
+   flag_debug = (getenv("DEBUG") != NULL);
 
-   /* check program arguments */
-   if (argc < 3) {
-      printf("Usage: asm6502 input output [listing]\n");
-      return EXIT_SUCCESS;
+   if (!parse_args(argc, argv)) {
+      print_usage();
+      return EXIT_FAILURE;
    }
-   if (!strcmp(argv[1], argv[2])) {
+
+   if (!strcmp(source_filename, output_filename)) {
       printf("refuse to overwrite your source ;-)\n");
       return EXIT_FAILURE;
    }
-   if (argc == 4  && 
-      (!strcmp(argv[1], argv[3]) || !strcmp(argv[2], argv[3]))) {
+   if (listing_filename &&  (!strcmp(source_filename, listing_filename) ||
+                             !strcmp(output_filename, listing_filename))) {
       printf("refuse to overwrite your files ;-)\n");
       return EXIT_FAILURE;
    }
 
-   if (!(current_file = read_file(argv[1]))) {
+   if (!(current_file = read_file(source_filename))) {
       printf("error loading file\n");
       errors = 1;
       goto ret0;
@@ -1990,14 +2057,14 @@ int main(int argc, char *argv[])
       goto ret1;
    }
 
-   if (argc == 4) {
+   if (listing_filename) {
       /*initialize listing */
-      if (!init_listing(argv[3])) {
+      if (!init_listing(listing_filename)) {
          printf("error opening listing file\n");
          errors = 1;
          goto ret1;
       }
-      printf("writing listing to %s\n", argv[3]);
+      if (!flag_quiet) printf("writing listing to %s\n", argv[3]);
    }
 
    /* second assembler pass */
@@ -2011,10 +2078,10 @@ int main(int argc, char *argv[])
    if (listing)
       list_symbols();
 
-   printf("output size = %d bytes\n", oc);
+   if (!flag_quiet) printf("output size = %d bytes\n", oc);
    fflush(stdout);
 
-   if (!save_code(argv[2], code, oc)) {
+   if (!save_code(output_filename, code, oc)) {
       printf("error saving file\n");
       errors = 1;
       goto ret2;
