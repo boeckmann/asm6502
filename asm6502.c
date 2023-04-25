@@ -658,12 +658,36 @@ static value primary(char **p)
    return res;
 }
 
+static value negation(char **p)
+{
+   value res;
+   char op = 0;
+
+   skip_white(p);
+   if (**p == '~' || **p == '!') {
+      op = **p;
+      (*p)++;
+   }   
+   res = primary(p);
+
+   if (op && DEFINED(res)) {
+      if (op == '~') res.v = ~res.v;
+      else {
+         res.v = !res.v;
+         if (res.v) res.v = 1;
+      }
+      if (TYPE(res) == TYPE_BYTE) res.v &= 0xff;
+   }
+
+   return res;
+}
+
 static value product(char **p)
 {
    value  n2, res;
    char op;
 
-   res = primary(p);
+   res = negation(p);
 
    skip_white(p);
    op = **p;
@@ -675,7 +699,7 @@ static value product(char **p)
       (*p)++;
       if (**p == '<' || **p == '>') (*p)++;
 
-      n2 = primary(p);
+      n2 = negation(p);
 
       if (DEFINED(res) && DEFINED(n2)) {
          switch (op) {
@@ -866,14 +890,6 @@ static value expr(char **p)
       v = logical_or(p);
       SET_TYPE(v, TYPE_BYTE);
       v.v = v.v & 0xff;
-   }
-   else if (**p == '!') {
-      (*p)++;
-      v = logical_or(p);
-      if (DEFINED(v)) {
-         v.v = (v.v) ? 0 : 1;
-      }
-      SET_TYPE(v, TYPE_BYTE);
    }
    else if (starts_with(*p, "[b]")) {
       /* lossless byte conversion */
