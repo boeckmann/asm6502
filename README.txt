@@ -833,7 +833,7 @@ B Instruction Reference
          B5 15      lda $15,x
          AD 11 47   lda $4711
          BD 11 47   lda $4711,x
-         59 11 47   eor $4711,y
+         B9 11 47   lda $4711,y
          A1 15      lda ($15,x)
          B1 15      lda ($15),y
 
@@ -1023,4 +1023,4 @@ B Instruction Reference
 
          98         tya
 
-[Di 25 Apr 17:31:26 2023]
+[Di 25 Apr 18:03:19 2023]

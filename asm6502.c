@@ -668,7 +668,8 @@ static value product(char **p)
    skip_white(p);
    op = **p;
 
-   while((op == '*') || (op == '/') || (op == AND_LETTER)
+   while((op == '*') || (op == '/')
+         || (op == AND_LETTER && *(*p+1) != AND_LETTER)
          || (**p == '<' && *(*p+1) == '<')
          || (**p == '>' && *(*p+1) == '>')) {
       (*p)++;
@@ -726,7 +727,8 @@ static value term(char **p)
    op = **p;
 
    while ((op == '+') || (op == '-') || 
-          (op == OR_LETTER) || (op == EOR_LETTER)) {
+          (op == OR_LETTER && *(*p+1) != OR_LETTER) ||
+          (op == EOR_LETTER)) {
       (*p)++;
       n2 = product(p);
 
@@ -791,6 +793,54 @@ static value comparison(char **p)
    return res;
 }
 
+static value logical_and(char **p)
+{
+   value res, n2;
+
+   res = comparison(p); 
+    
+   skip_white(p);
+   while ((**p == AND_LETTER && *(*p+1) == AND_LETTER)) {
+      *p += 2;
+
+      n2 = comparison(p);
+
+      if (DEFINED(res) && DEFINED(n2)) {
+         res.v = (res.v && n2.v) ? 1 : 0;
+      }
+      else {
+         res.v = 0;
+      }
+      SET_DEFINED(res);
+      SET_TYPE(res, TYPE_BYTE);
+   }
+   return res;
+}
+
+static value logical_or(char **p)
+{
+   value res, n2;
+
+   res = logical_and(p); 
+
+   skip_white(p);
+   while ((**p == OR_LETTER && *(*p+1) == OR_LETTER)) {
+      *p += 2;
+
+      n2 = logical_and(p);
+
+      if (DEFINED(res) || DEFINED(n2)) {
+         res.v = (res.v || n2.v) ? 1 : 0;
+      }
+      else {
+         res.v = 0;
+      }
+      SET_DEFINED(res);
+      SET_TYPE(res, TYPE_BYTE);
+   }
+   return res;
+}
+
 static value expr(char **p)
 {
    value v;
@@ -798,20 +848,20 @@ static value expr(char **p)
    skip_white(p);
    if (**p == '>') {
       (*p)++;
-      v = comparison(p);
+      v = logical_or(p);
       SET_TYPE(v, TYPE_BYTE);
       v.v = v.v >> 8;
    }
    else if (**p == '<') {
       (*p)++;
-      v = comparison(p);
+      v = logical_or(p);
       SET_TYPE(v, TYPE_BYTE);
       v.v = v.v & 0xff;
    }
    else if (starts_with(*p, "[b]")) {
       /* lossless byte conversion */
       *p += 3;
-      v = comparison(p);
+      v = logical_or(p);
       if (DEFINED(v) && v.v > 0xff)
          error(ERR_BYTERNG);
       SET_TYPE(v, TYPE_BYTE);
@@ -819,18 +869,18 @@ static value expr(char **p)
    else if (starts_with(*p, "[w]")) {
       /* lossless word conversion */
       *p += 3;
-      v = comparison(p);
+      v = logical_or(p);
       SET_TYPE(v, TYPE_WORD);
    }
    else if (starts_with(*p, ".not")) {
       *p += 4;
-      v = comparison(p);
+      v = logical_or(p);
       if (DEFINED(v)) {
          v.v = (v.v) ? 0 : 1;
       }
       SET_TYPE(v, TYPE_BYTE);
    }
-   else v = comparison(p);
+   else v = logical_or(p);
    return v;
 }
 
