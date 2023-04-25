@@ -783,25 +783,11 @@ static value comparison(char **p)
          case '>': res.v = (op2 == '=') ? res.v >= n2.v : res.v > n2.v; break;
          }   
          SET_DEFINED(res);
-      }
-      else if (!DEFINED(res) && !DEFINED(n2)) {
-         switch (op) {
-         case '=': res.v = 1; SET_DEFINED(res); break;
-         case '!': res.v = 0; SET_DEFINED(res); break; 
-         default: res.v = 0; res.defined = 0;       
-         }
-         SET_DEFINED(res);         
+         if (res.v) res.v = 1;
       }
       else {
-         switch(op) {
-         case '=': res.v = ((DEFINED(res)) ? res.v : 0) 
-                           == ((DEFINED(n2)) ? n2.v : 0);
-                   SET_DEFINED(res); break;
-         case '!': res.v = ((DEFINED(res)) ? res.v : 0) 
-                           != ((DEFINED(n2)) ? n2.v : 0);
-                   SET_DEFINED(res); break;
-         default: res.v = 0; res.defined = 0;
-         }
+         res.v = 0;
+         SET_UNDEFINED(res);
       }
       SET_TYPE(res, TYPE_BYTE);
   }
@@ -823,11 +809,12 @@ static value logical_and(char **p)
 
       if (DEFINED(res) && DEFINED(n2)) {
          res.v = (res.v && n2.v) ? 1 : 0;
+         SET_DEFINED(res);
       }
       else {
          res.v = 0;
+         SET_UNDEFINED(res);
       }
-      SET_DEFINED(res);
       SET_TYPE(res, TYPE_BYTE);
    }
    return res;
@@ -845,13 +832,19 @@ static value logical_or(char **p)
 
       n2 = logical_and(p);
 
-      if (DEFINED(res) || DEFINED(n2)) {
-         res.v = (res.v || n2.v) ? 1 : 0;
+      if (DEFINED(res) && res.v != 0) {
+         res.v = 1;
+         SET_DEFINED(res);
+      }
+      else if (DEFINED(n2) && n2.v != 0) {
+         res.v = 1;
+         SET_DEFINED(res);
       }
       else {
          res.v = 0;
+         SET_UNDEFINED(res);
       }
-      SET_DEFINED(res);
+
       SET_TYPE(res, TYPE_BYTE);
    }
    return res;
@@ -874,6 +867,14 @@ static value expr(char **p)
       SET_TYPE(v, TYPE_BYTE);
       v.v = v.v & 0xff;
    }
+   else if (**p == '!') {
+      (*p)++;
+      v = logical_or(p);
+      if (DEFINED(v)) {
+         v.v = (v.v) ? 0 : 1;
+      }
+      SET_TYPE(v, TYPE_BYTE);
+   }
    else if (starts_with(*p, "[b]")) {
       /* lossless byte conversion */
       *p += 3;
@@ -887,14 +888,6 @@ static value expr(char **p)
       *p += 3;
       v = logical_or(p);
       SET_TYPE(v, TYPE_WORD);
-   }
-   else if (starts_with(*p, ".not")) {
-      *p += 4;
-      v = logical_or(p);
-      if (DEFINED(v)) {
-         v.v = (v.v) ? 0 : 1;
-      }
-      SET_TYPE(v, TYPE_BYTE);
    }
    else v = logical_or(p);
    return v;
@@ -1491,7 +1484,7 @@ static void directive_binary(char **p)
    fclose(file);
 }
 
-static void directive_if(char **p, int positive_logic)
+static void directive_if(char **p, int positive_logic, int check_defined)
 {
    value v;
 
@@ -1501,8 +1494,12 @@ static void directive_if(char **p, int positive_logic)
 
    if (process_statements) {
       v = expr(p);
-      /*if (!DEFINED(v)) error(ERR_UNDEF);*/
-      process_statements = DEFINED(v) && v.v != 0;
+      if (check_defined) process_statements = DEFINED(v);
+      else {
+         /*if (!DEFINED(v)) error(ERR_UNDEF);*/
+         process_statements = DEFINED(v) && v.v != 0;
+      }
+
       if (!positive_logic) process_statements = !process_statements;
       if_stack[if_stack_count].condition_met = process_statements;
    }
@@ -1933,13 +1930,22 @@ static int conditional_statement(char **p)
    ident_upcase(p, id);
 
    if (!strcmp(id, "IF")) {
-      directive_if(p, 1);
+      directive_if(p, 1, 0);
       return 1;
    }
    else if (!strcmp(id, "IFN")) {
-      directive_if(p, 0);
+      directive_if(p, 0, 0);
       return 1;
    }
+   else if (!strcmp(id, "IFDEF")) {
+      directive_if(p, 1, 1);
+      return 1;
+
+   }
+   else if (!strcmp(id, "IFNDEF")) {
+      directive_if(p, 0, 1);
+      return 1;
+   }   
    else if (!strcmp(id, "ELSE")) {
       directive_else();
       return 1;

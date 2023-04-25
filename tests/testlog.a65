@@ -1,3 +1,4 @@
+; test logical OR
 .echo "? || ? = ", ? || ?
 .echo "? || 0 = ", ? || 0
 .echo "0 || ? = ", 0 || ?
@@ -7,6 +8,7 @@
 .echo "1 || 0 = ", 1 || 0
 .echo "1 || 1 = ", 1 || 1
 
+; test logical AND
 .echo "? && ? = ", ? && ?
 .echo "? && 0 = ", ? && 0
 .echo "0 && ? = ", 0 && ?
@@ -15,3 +17,18 @@
 .echo "0 && 1 = ", 0 && 1
 .echo "1 && 0 = ", 1 && 0
 .echo "1 && 1 = ", 1 && 1
+
+; test logical == and logical !=
+.echo "? == ? = ", ? == ?
+.echo "? != ? = ", ? != ?
+.echo "? == 0 = ", ? == 0
+.echo "0 == ? = ", 0 == ?
+.echo "? != 0 = ", ? != 0
+.echo "0 != ? = ", 0 != ?
+.echo "? == 1 = ", ? == 1
+.echo "1 == ? = ", 1 == ?
+.echo "? != 1 = ", ? != 1
+.echo "1 != ? = ", 1 != ?
+
+; two undefined symbols
+.echo "X,Y undefined : X == Y = ", X == Y

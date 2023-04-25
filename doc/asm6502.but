@@ -109,6 +109,8 @@ Two data types are known to the assembler:
 
 \b \e{word}: 16-bit in size, storing positive whole numbers between 0 to 65535. Negative numbers may also be stored in the range from -32768 to -1. Negative numbers are stored in two-complement representation.
 
+There is no distinct boolean type. In a boolean context, any value other than zero is considered to be a boolean true.
+
 \H{symbols}Symbols
 
 The assembler distinguishes two types of case-sensitive symbols: \e{labels} and \e{variables}. A label stores the address of of the instruction or data it is currently assembling. It is defined at the beginning of a line by appending its name with a colon. The colon may be left out if the label name is not an instruction mnemonic.
@@ -180,6 +182,10 @@ The supported operations from highest to lowest precedence are:
 
 \b comparison operators: \cw{==}, \cw{!=}, \cw{<}, \cw{>}, \cw{<=}, \cw{>=}
 
+\b logical and \cw{&&}
+
+\b logical or \cw{||}
+
 \b unary low \cw{<} and high \cw{>} byte select, lossless unary conversion operators \cw{[b]} and \cw{[w]}, boolean not \cw{.not}
 
 \S{}Conversion operators
@@ -192,7 +198,17 @@ The low-byte select operator \cw{<} returns the low byte of a word-sized express
 
 \S{}Logical Operators
 
-The comparison operators and the boolean not operator return 1 if the comparison is true, else they return 0. The result is of type byte. If one or both arguments have an undefined value, the result is the undefined value.
+The logical operators return 1 as true value, and 0 as false value. They return the undefined value if at least one of their arguments is undefined. The logical or \cw{||} operator is an exception to this rule. It returns true if at least one of its arguments is true.
+
+The logical operators are logical and \cw{&&}, logical or \cw{||}, and the unary logical not \cw{!}.
+
+\S{}Comparison Operators
+
+The comparison  operators return 1 as true value, and 0 as false value. They return the undefined value if at least one of their arguments is undefined.  The comparison operators are:
+
+\b equality \cw{==}, and non-equality \cw{!=}
+
+\b greater than \cw{>}, less than \cw{<}, greater or equal than \cw{>=}, and less or equal than \cw{<=}
 
 \S{}Arithmetic Operators
 
@@ -268,6 +284,8 @@ Conditionally assembles code if the condition of the argument to \cw{.IF} or \cw
 
 If the condition is met, the code between \cw{.IF} or \cw{.IFN} and \cw{.ELSE} is assembled, or between \cw{.IF} or \cw{.IFN} and \cw{.ENDIF}, if \cw{.ELSE} is not given. If the argument to \cw{.IF} or \cw{.IFN} is not met and \cw{.ELSE} is specified, the code between \cw{.ELSE} and \cw{.ENDIF} is assembled.
 
+\cw{.IF} and \cw{.IFN} treat an undefined expression like a boolean false.
+
 The conditional directives may \e{not} be preceded by a label.
 
 Example:
@@ -280,6 +298,10 @@ Example:
 \c .ENDIF
 
 In listing files, the unprocessed lines are indicated by a minus after the line number instead of a colon.
+
+\S{}.IFDEF and .IFNDEF
+
+An argument to \cw{.IFDEF} is considered true, if its value is defined. An argument to \cw{.IFNDEF} is considered true, if its value is undefined. Otherwise, the directives behave like their \cw{.IF} and \cw{.IFN} counterparts.
 
 \S{}.INCLUDE directive
 

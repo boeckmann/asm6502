@@ -20,6 +20,6 @@ C64 = 1   ; set to zero to assemble for Commodore PET
 
 .echo "hexadecimal representation of ", $1267, " is ", [$]4711
 
-.ifn ?
+.ifndef ?
   .echo "I run on an undefined value"
 .endif
