@@ -28,7 +28,7 @@ The assembler outputs plain binary files.
 
 The following listing contains a small sample program. It is the classic hello world for the Commodore C64. To assemble it, invoke the assembler with the source, output, and listing files as arguments:
 
-\cw{asm6502 helloc64.a65 helloc64.prg helloc64.lst}
+\cw{asm6502 helloc64.a65 -o helloc64.prg -l helloc64.lst}
 
 \c  1: ; C64 Hello World
 \c  2:
@@ -249,6 +249,10 @@ Example:
 
 \c .ECHO "hexadecimal representation of ", 4711, " is ", [$]4711
 
+\S{}.ERROR directive
+
+Aborts the assembly along with file name and line number information. Accepts the same parameters as \cw{.ECHO} for the error message.
+
 \S{}.FILL directive
 
 Starting from the current position of the output file, emits as many bytes as given by the first argument. If the second argument is given, the region is filled with its byte-sized value. Otherwise, it is filled with zero. The address counter \cw{@} is increased accordingly.
@@ -298,6 +302,10 @@ Sets the address counter for the currently processed instruction to the numeric 
 Example:
 
 \c .ORG $0801
+
+\S{}.WARNING directive
+
+Prints a warning along with file name and line number information. Accepts the same parameters as \cw{.ECHO} for the warning message.
 
 \S{}.WORD directive
 
@@ -375,13 +383,23 @@ This one is correct (indirect addressing):
 
 \c JMP ((2+3)*1000)
 
-\S{} Indexed indirect by X and indirect indexed by Y addressing
+\S{}Indexed indirect by X and indirect indexed by Y addressing
 
 Indirect indirect by X addresses the byte referenced by the contents of the word stored at zero page address b + X. Indirect indexed by Y adds Y to the address word stored in zero page address b to calculate the address to operate on.
 
 \c b = 15
 \c ORA (b,X)
 \c ORA (b),Y
+
+\A{usage}Command Line Syntax
+
+\c Usage: asm6502 [-q] input -o output [-l listing] [VAR=number]...
+\c 
+\c   -q             be quiet, unless an error occured
+\c   -o output      set output file name
+\c   -l listing     set optional listing file name
+
+Variables defined from the command line are known to the assembler when assembling files. The numbers are parsed like number literals in the source code.
 
 \A{instruction-ref}Instruction Reference
 

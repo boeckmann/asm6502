@@ -1,25 +1,32 @@
-/* ASM6502
- *
- * Copyright (c) 2022-2023 Bernd Boeckmann
- * 
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- * 
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
- * 
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
- * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- */
+/* ASM6502 - a small but useful assembler for the MOS 6502 microprocessor
+ 
+Copyright (c) 2022-2023 Bernd Boeckmann
+ 
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice,
+   this list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its contributors
+   may be used to endorse or promote products derived from this software
+   without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS “AS IS”
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
 
 /* customize the following to adapt to the syntax of other assemblers */
 #define DIRECTIVE_LETTER       '.'
@@ -370,51 +377,6 @@ static symbol *aquire_local(const char *name, symbol *parent)
    }
    return sym;
 }
-
-static char sym_kind_to_char(u8 kind)
-{
-   switch (kind) {
-      case KIND_LBL:
-         return 'L';
-      case KIND_VAR:
-         return 'V';
-   }
-   return '-';
-}
-
-static char sym_type_to_char(u8 typ)
-{
-   switch (typ) {
-      case TYPE_BYTE:
-         return 'b';
-      case TYPE_WORD:
-         return 'w';
-   }
-   return '?';
-}
-
-#if 0
-static void dump_symbols(void)
-{
-   symbol *sym = symbols;
-   symbol *locals;
-
-   for (; sym; sym = sym->next) {
-      if (DEFINED(sym->value))
-         printf("%c %c %04x %s\n", sym_kind_to_char(sym->kind), 
-            sym_type_to_char(sym->value.t), sym->value.v, sym->name);
-      else
-         printf("%c %c    ? %s\n", sym_kind_to_char(sym->kind),
-            sym_type_to_char(sym->value.t), sym->name);
-      if (IS_LBL(*sym)) {
-         
-         for (locals = sym->locals; locals; locals = locals->next) {
-            printf("           %04x @%s\n", locals->value.v, locals->name);
-         }
-      }
-   }
-}
-#endif
 
 static symbol * define_label(const char *id, u16 v, symbol *parent)
 {
@@ -1837,13 +1799,10 @@ static void list_symbols(void)
 
          if (sym->kind == KIND_LBL) fputs("LBL ", list_file);
          else fputs("VAR ", list_file);
-         /*fputc(sym_kind_to_char(sym->kind), list_file);*/
 
          if (sym->value.t == TYPE_BYTE) fputs("BYTE  ", list_file);
          else if (sym->value.t == TYPE_WORD) fputs("WORD  ", list_file);
          else fputs("?     ", list_file);
-         /*fputc(sym_type_to_char(sym->value.t), list_file);
-         fputs("  ", list_file);*/
 
          if (sym->filename) {
             fprintf(list_file, "%s:%d", sym->filename, sym->line);
@@ -2064,9 +2023,9 @@ void print_usage(void)
       "  -q             be quiet, unless an error occured\n"
       "  -o output      set output file name\n"
       "  -l listing     set optional listing file name\n\n"
-      "Variables defined via command line are are known to the assembler\n"
+      "Variables defined from command line are are known to the assembler\n"
       "when assembling files. The numbers are parsed like number literals\n"
-      "in assembler source.\n\n"
+      "in the source code.\n\n"
    );
 }
 
