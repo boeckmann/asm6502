@@ -620,7 +620,7 @@ Flags: N Z
 \c B5 15      lda $15,x
 \c AD 11 47   lda $4711
 \c BD 11 47   lda $4711,x
-\c 59 11 47   eor $4711,y
+\c B9 11 47   lda $4711,y
 \c A1 15      lda ($15,x)
 \c B1 15      lda ($15),y
 

@@ -97,7 +97,7 @@ lda 15
 lda 15,x
 lda 7951
 lda 7951,x
-eor 7951,y
+lda 7951,y
 lda (15,x)
 lda (15),y
 
