@@ -385,13 +385,14 @@ Copyright 2022-2023 by Bernd Boeckmann
          .BYTE 47, 11
          .BYTE "Hello, World", 13, 10
 
- 4.6.3 .ECHO directive
+ 4.6.3 .ECHO and .ECHO1 directives
 
-       Prints the arguments to standard output. This is done on the second
-       assembler pass. The arguments may either be strings or numeric
-       expressions, separated by comma. Numeric expressions may be prefixed
-       by the format specifier [$] to output the number in hexadecimal
-       format. Otherwise it is printed in decimal.
+       Print the arguments to standard output. .ECHO does it on the
+       second assembler pass, while .ECHO1 does it on the first pass. The
+       arguments may either be strings or numeric expressions, separated by
+       comma. Numeric expressions may be prefixed by the format specifier
+       [$] to output the number in hexadecimal format. Otherwise it is
+       printed in decimal.
 
        Example:
 
@@ -415,18 +416,19 @@ Copyright 2022-2023 by Bernd Boeckmann
          .FILL 100       ; fill 100 bytes with zero
          .FILL 16, $EA   ; insert 16 NOPs ($EA) into the code
 
- 4.6.6 .IF, .ELSE and .ENDIF directives
+ 4.6.6 .IF, .IFN, .ELSE and .ENDIF directives
 
-       Conditionally assembles code depending on the value of the argument
-       to .IF. If it is non-zero, the code between .IF and .ENDIF is
-       assembled, or between .IF and .ELSE, if .ELSE is given. If the
-       argument to .IF is zero and .ELSE is specified, the code between
-       .ELSE and .ENDIF is assembled. Otherwise the source between .IF and
-       .ENDIF is skipped.
+       Conditionally assembles code if the condition of the argument to .IF
+       or .IFN is met. For .IF, the condition is met if the argument yields
+       a defined value other than zero. For .IFN, the condition is met if
+       the argument does not yield a defined value or the value is zero.
 
-       It is an error if the argument to .IF yields an undefined value in
-       pass one. The conditional directives may _not_ be preceded by a
-       label.
+       If the condition is met, the code between .IF or .IFN and .ELSE is
+       assembled, or between .IF or .IFN and .ENDIF, if .ELSE is not given.
+       If the argument to .IF or .IFN is not met and .ELSE is specified,
+       the code between .ELSE and .ENDIF is assembled.
+
+       The conditional directives may _not_ be preceded by a label.
 
        Example:
 
@@ -1021,4 +1023,4 @@ B Instruction Reference
 
          98         tya
 
-[Di 25 Apr 14:40:40 2023]
+[Di 25 Apr 17:31:26 2023]

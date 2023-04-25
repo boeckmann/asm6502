@@ -241,9 +241,9 @@ Example:
 \c .BYTE 47, 11
 \c .BYTE "Hello, World", 13, 10
 
-\S{}.ECHO directive
+\S{}.ECHO and .ECHO1 directives
 
-Prints the arguments to standard output. This is done on the second assembler pass. The arguments may either be strings or numeric expressions, separated by comma. Numeric expressions may be prefixed by the format specifier \cw{[$]} to output the number in hexadecimal format. Otherwise it is printed in decimal.
+Print the arguments to standard output. \cw{.ECHO} does it on the second assembler pass, while \cw{.ECHO1} does it on the first pass. The arguments may either be strings or numeric expressions, separated by comma. Numeric expressions may be prefixed by the format specifier \cw{[$]} to output the number in hexadecimal format. Otherwise it is printed in decimal.
 
 Example:
 
@@ -262,11 +262,13 @@ Example:
 \c .FILL 100       ; fill 100 bytes with zero
 \c .FILL 16, $EA   ; insert 16 NOPs ($EA) into the code
 
-\S{}.IF, .ELSE and .ENDIF directives
+\S{}.IF, .IFN, .ELSE and .ENDIF directives
 
-Conditionally assembles code depending on the value of the argument to \cw{.IF}. If it is non-zero, the code between \cw{.IF} and \cw{.ENDIF} is assembled, or between \cw{.IF} and \cw{.ELSE}, if \cw{.ELSE} is given. If the argument to \cw{.IF} is zero and \cw{.ELSE} is specified, the code between \cw{.ELSE} and \cw{.ENDIF} is assembled. Otherwise the source between \cw{.IF} and \cw{.ENDIF} is skipped.
+Conditionally assembles code if the condition of the argument to \cw{.IF} or \cw{.IFN} is met. For \cw{.IF}, the condition is met if the argument yields a defined value other than zero. For \cw{.IFN}, the condition is met if the argument does not yield a defined value or the value is zero.
 
-It is an error if the argument to \cw{.IF} yields an undefined value in pass one. The conditional directives may \e{not} be preceded by a label.
+If the condition is met, the code between \cw{.IF} or \cw{.IFN} and \cw{.ELSE} is assembled, or between \cw{.IF} or \cw{.IFN} and \cw{.ENDIF}, if \cw{.ELSE} is not given. If the argument to \cw{.IF} or \cw{.IFN} is not met and \cw{.ELSE} is specified, the code between \cw{.ELSE} and \cw{.ENDIF} is assembled.
+
+The conditional directives may \e{not} be preceded by a label.
 
 Example:
 

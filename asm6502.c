@@ -1425,7 +1425,7 @@ static void directive_binary(char **p)
    fclose(file);
 }
 
-static void directive_if(char **p)
+static void directive_if(char **p, int positive_logic)
 {
    value v;
 
@@ -1437,6 +1437,7 @@ static void directive_if(char **p)
       v = expr(p);
       /*if (!DEFINED(v)) error(ERR_UNDEF);*/
       process_statements = DEFINED(v) && v.v != 0;
+      if (!positive_logic) process_statements = !process_statements;
       if_stack[if_stack_count].condition_met = process_statements;
    }
    else {
@@ -1505,20 +1506,10 @@ static void echo(char **p)
    puts("");   
 }
 
-static void directive_echo(char **p)
+static void directive_echo(char **p, int on_pass)
 {
    /* echo on second pass */
-   if (pass == 1) {
-      skip_to_eol(p);
-      return;
-   }
-   echo(p);
-}
-
-static void directive_echo1(char **p)
-{
-   /* echo on first pass */
-   if (pass == 2) {
+   if (pass != on_pass) {
       skip_to_eol(p);
       return;
    }
@@ -1574,10 +1565,10 @@ static int directive(char **p)
       directive_binary(p);
    }
    else if (!strcmp(id, "ECHO")) {
-      directive_echo(p);
+      directive_echo(p, 2);
    }
    else if (!strcmp(id, "ECHO1")) {
-      directive_echo1(p);
+      directive_echo(p, 1);
    }
    else if (!strcmp(id, "ERROR")) {
       directive_diagnostic(p, 1);
@@ -1876,7 +1867,11 @@ static int conditional_statement(char **p)
    ident_upcase(p, id);
 
    if (!strcmp(id, "IF")) {
-      directive_if(p);
+      directive_if(p, 1);
+      return 1;
+   }
+   else if (!strcmp(id, "IFN")) {
+      directive_if(p, 0);
       return 1;
    }
    else if (!strcmp(id, "ELSE")) {
