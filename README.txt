@@ -195,6 +195,9 @@ Copyright 2022-2023 by Bernd Boeckmann
            from -32768 to -1. Negative numbers are stored in two-complement
            representation.
 
+       There is no distinct boolean type. In a boolean context, any value
+       other than zero is considered to be a boolean true.
+
    4.3 Symbols
 
        The assembler distinguishes two types of case-sensitive symbols:
@@ -294,6 +297,10 @@ Copyright 2022-2023 by Bernd Boeckmann
 
         -  comparison operators: ==, !=, <, >, <=, >=
 
+        -  logical and &&
+
+        -  logical or ||
+
         -  unary low < and high > byte select, lossless unary conversion
            operators [b] and [w], boolean not .not
 
@@ -315,12 +322,26 @@ Copyright 2022-2023 by Bernd Boeckmann
 
  4.4.5 Logical Operators
 
-       The comparison operators and the boolean not operator return 1 if
-       the comparison is true, else they return 0. The result is of type
-       byte. If one or both arguments have an undefined value, the result
-       is the undefined value.
+       The logical operators return 1 as true value, and 0 as false value.
+       They return the undefined value if at least one of their arguments
+       is undefined. The logical or || operator is an exception to this
+       rule. It returns true if at least one of its arguments is true.
 
- 4.4.6 Arithmetic Operators
+       The logical operators are logical and &&, logical or ||, and the
+       unary logical not !.
+
+ 4.4.6 Comparison Operators
+
+       The comparison operators return 1 as true value, and 0 as false
+       value. They return the undefined value if at least one of their
+       arguments is undefined. The comparison operators are:
+
+        -  equality ==, and non-equality !=
+
+        -  greater than >, less than <, greater or equal than >=, and less
+           or equal than <=
+
+ 4.4.7 Arithmetic Operators
 
        The usual semantics for the arithmetic operators apply.
 
@@ -428,6 +449,8 @@ Copyright 2022-2023 by Bernd Boeckmann
        If the argument to .IF or .IFN is not met and .ELSE is specified,
        the code between .ELSE and .ENDIF is assembled.
 
+       .IF and .IFN treat an undefined expression like a boolean false.
+
        The conditional directives may _not_ be preceded by a label.
 
        Example:
@@ -442,7 +465,13 @@ Copyright 2022-2023 by Bernd Boeckmann
        In listing files, the unprocessed lines are indicated by a minus
        after the line number instead of a colon.
 
- 4.6.7 .INCLUDE directive
+ 4.6.7 .IFDEF and .IFNDEF
+
+       An argument to .IFDEF and .IFNDEF are considered to be true, if
+       it is defined. It is considered to be false, if it is undefined.
+       Otherwise thew behave like their .IF and .ENDIF counterparts.
+
+ 4.6.8 .INCLUDE directive
 
        Substitutes the directive with the contents of a file given by the
        argument for processing by the assembler.
@@ -451,7 +480,7 @@ Copyright 2022-2023 by Bernd Boeckmann
 
          .INCLUDE "c64prg.i65"
 
- 4.6.8 .LIST and .NOLIST
+ 4.6.9 .LIST and .NOLIST
 
        If a listing file is given via command line, listing generation is
        initially enabled. If the user wants some parts of the code to be
@@ -464,7 +493,7 @@ Copyright 2022-2023 by Bernd Boeckmann
        A .NOLIST inside an include file does not propagate to the parent
        file.
 
- 4.6.9 .ORG directive
+4.6.10 .ORG directive
 
        Sets the address counter for the currently processed instruction
        to the numeric value of the argument. Does not modify the offset
@@ -475,12 +504,12 @@ Copyright 2022-2023 by Bernd Boeckmann
 
          .ORG $0801
 
-4.6.10 .WARNING directive
+4.6.11 .WARNING directive
 
        Prints a warning along with file name and line number information.
        Accepts the same parameters as .ECHO for the warning message.
 
-4.6.11 .WORD directive
+4.6.12 .WORD directive
 
        Produces one or more output words.
 
@@ -1023,4 +1052,4 @@ B Instruction Reference
 
          98         tya
 
-[Di 25 Apr 18:03:19 2023]
+[Di 25 Apr 22:26:44 2023]
