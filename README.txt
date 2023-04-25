@@ -289,6 +289,8 @@ Copyright 2022-2023 by Bernd Boeckmann
 
         -  expressions enclosed by parentheses ()
 
+        -  unary bit-wise complement ~, and logical not !
+
         -  multiplication *, division /, bit-wise and &, logical left <<
            and right >> shift.
 
@@ -302,16 +304,18 @@ Copyright 2022-2023 by Bernd Boeckmann
         -  logical or ||
 
         -  unary low < and high > byte select, lossless unary conversion
-           operators [b] and [w], boolean not .not
+           operators [b] and [w]
 
- 4.4.3 Conversion operators
+        -  defined-or-else ?:
+
+ 4.4.3 Conversion Operators
 
        The convert to byte [b] and convert to word [w] operators change the
        data type of their expression. If the expression does not fit into a
        byte, [b] raises an error. The operators also change the type of the
        undefined value while retaining undefined as a value.
 
- 4.4.4 Byte-select operators
+ 4.4.4 Byte-select Operators
 
        The low-byte select operator < returns the low byte of a word-sized
        expression, or the unmodified value of a byte-sized expression. The
@@ -322,18 +326,18 @@ Copyright 2022-2023 by Bernd Boeckmann
 
  4.4.5 Logical Operators
 
-       The logical operators return 1 as true value, and 0 as false value.
-       They return the undefined value if at least one of their arguments
-       is undefined. The logical or || operator is an exception to this
-       rule. It returns true if at least one of its arguments is true.
-
        The logical operators are logical and &&, logical or ||, and the
        unary logical not !.
+
+       The logical operators return 1 as true value, and 0 as false value.
+       They return an undefined value if at least one of their arguments is
+       undefined. The logical or || operator is an exception to this rule.
+       It returns true if at least one of its arguments is true.
 
  4.4.6 Comparison Operators
 
        The comparison operators return 1 as true value, and 0 as false
-       value. They return the undefined value if at least one of their
+       value. They return an undefined value if at least one of their
        arguments is undefined. The comparison operators are:
 
         -  equality ==, and non-equality !=
@@ -356,6 +360,17 @@ Copyright 2022-2023 by Bernd Boeckmann
          2+3*5     ; yields correct value 17
          <$4711    ; selects low byte $11
          255+255   ; of type word because >256
+
+ 4.4.8 Defined-or-else Operator
+
+       The defined-or-else operator ?: returns its first argument if it is
+       defined, otherwise its second. It is left-associative.
+
+       Example:
+
+         Y = ?
+         Z = X ?: Y ?: $DEAD  ; assign $DEAD to Z
+                              ; because X and Y are undefined
 
    4.5 Line Format
 
@@ -467,9 +482,10 @@ Copyright 2022-2023 by Bernd Boeckmann
 
  4.6.7 .IFDEF and .IFNDEF
 
-       An argument to .IFDEF and .IFNDEF are considered to be true, if
-       it is defined. It is considered to be false, if it is undefined.
-       Otherwise thew behave like their .IF and .ENDIF counterparts.
+       An argument to .IFDEF is considered true, if its value is defined.
+       An argument to .IFNDEF is considered true, if its value is
+       undefined. Otherwise, the directives behave like their .IF and .IFN
+       counterparts.
 
  4.6.8 .INCLUDE directive
 
@@ -1052,4 +1068,4 @@ B Instruction Reference
 
          98         tya
 
-[Di 25 Apr 22:26:44 2023]
+[Mi 26 Apr 00:51:19 2023]
