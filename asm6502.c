@@ -67,12 +67,16 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 static int flag_debug = 0;      /* set DEBUG env variable to enable debug output */      
 static int flag_quiet = 0;
 
-static unsigned char *code = NULL;  /* holds the emitted code */
+static u8 *code = NULL;  /* holds the emitted code */
+static u16 code_size;
+
 static int line;                    /* currently processed line number */
 
 /* program counter and output counter may not be in sync */
 /* this happens if an .org directive is used, which modifies the */
 /* program counter but not the output counter. */
+
+static int pass;      /* current assembler pass */
 
 static u16 pc = 0;    /* program counter of currently assembled instruction */
 static u16 oc = 0;    /* counter of emitted output bytes */
@@ -248,7 +252,11 @@ static char* err_msg[] = {
 #define ERR_MISSING_ENDIF 28
    "missing .ENDIF",
 #define ERR_MAX_IF      29
-   "too many if nesting levels"
+   "too many if nesting levels",
+#define ERR_PHASE       30
+   "symbol value mismatch between pass one and two",
+#define ERR_PHASE_SIZE  31
+   "code size mismatch between pass one and two"
 };
 
 #define ERROR_NORM  1
@@ -384,8 +392,10 @@ static symbol * define_label(const char *id, u16 v, symbol *parent)
    if (parent) sym = aquire_local(id, parent);
    else sym = aquire(id);
 
-   if (IS_VAR(*sym) || (DEFINED(sym->value) && (sym->value.v != v)))
-      error(ERR_REDEF);
+   if (IS_VAR(*sym) || (DEFINED(sym->value) && (sym->value.v != v))) {
+      if (pass == 1) error(ERR_REDEF);
+      else error(ERR_PHASE);
+   }
 
    sym->value.v = v;
    sym->value.t = ((TYPE(sym->value) == TYPE_WORD) ? TYPE_WORD : NUM_TYPE(v));
@@ -416,7 +426,10 @@ static void define_variable(const char *id, const value v, symbol *parent)
    else sym = aquire(id);
 
    /* if already defined make sure the value did not change */
-   if (DEFINED(sym->value) && sym->value.v != v.v) error(ERR_REDEF);
+   if (DEFINED(sym->value) && sym->value.v != v.v) {
+      if (pass == 1) error(ERR_REDEF);
+      else error(ERR_PHASE);
+   }
    sym->value.v = v.v;
    sym->value.defined = v.defined;
    sym->filename = current_file->filename;
@@ -840,66 +853,81 @@ static idesc *getidesc(const char *p)
    return NULL;
 }
 
-static void emit_byte(u8 b, int pass)
+static void emit_byte(u8 b)
 {
    if (pass == 2) {
-      code[oc] = b;
+      if (oc < code_size) code[oc] = b;
+      else error(ERR_PHASE_SIZE);
    }
+
    oc+=1;
 }
 
-static void emit(const char *p, u16 len, int pass)
+static void emit(const char *p, u16 len)
 {
    u16 i=0;
 
    if (pass == 2) {
-      for (i=0; i<len; i++) {
-         code[oc+i] = p[i];
-      }      
+      if (oc - 1 < code_size - len) {
+         for (i=0; i<len; i++) {
+            code[oc+i] = p[i];
+         }      
+      }
+      else error(ERR_PHASE_SIZE);
    }
    oc+=len;
 }
 
-static void emit_word(u16 w, int pass)
+static void emit_word(u16 w)
 {
    if (pass == 2) {
-      code[oc] = w & 0xff;
-      code[oc+1] = w >> 8;
+      if (oc < code_size - 1) {
+         code[oc] = w & 0xff;
+         code[oc+1] = w >> 8;
+      } 
+      else error(ERR_PHASE_SIZE);
    }
    oc+=2;
 }
 
 /* emit instruction without argument */
-static void emit_instr_0(idesc *instr, int am, int pass)
+static void emit_instr_0(idesc *instr, int am)
 {
    if (pass == 2) {
-      code[oc] = instr->op[am];
+      if (oc < code_size) code[oc] = instr->op[am];
+      else error(ERR_PHASE_SIZE);
    }
    oc+=1;
 }
 
 /* emit instruction with byte argument */
-static void emit_instr_1(idesc *instr, int am, u8 o, int pass)
+static void emit_instr_1(idesc *instr, int am, u8 o)
 {
    if (pass == 2) {
-      code[oc] = instr->op[am];
-      code[oc+1] = o;
+      if (oc < code_size - 1) {
+         code[oc] = instr->op[am];
+         code[oc+1] = o;
+      } 
+      else error(ERR_PHASE_SIZE);
    }
    oc+=2;
 }
 
 /* emit instruction with word argument */
-static void emit_instr_2(idesc *instr, int am, u16 o, int pass)
+static void emit_instr_2(idesc *instr, int am, u16 o)
 {
    if (pass == 2) {
-      code[oc] = instr->op[am];
-      code[oc+1] = o & 0xff;
-      code[oc+2] = o >> 8;
+      if (oc < code_size - 2) {
+         code[oc] = instr->op[am];
+         code[oc+1] = o & 0xff;
+         code[oc+2] = o >> 8;
+      } 
+      else error(ERR_PHASE_SIZE);
    }
    oc+=3;
 }
 
-static int instruction_imp_acc(int pass, idesc *instr)
+static int instruction_imp_acc(idesc *instr)
 {
    int am = AM_INV;
 
@@ -907,12 +935,12 @@ static int instruction_imp_acc(int pass, idesc *instr)
    else if (instr->op[AM_IMP] != INV) am = AM_IMP;
    else error(ERR_AM);
 
-   emit_instr_0(instr, am, pass);
+   emit_instr_0(instr, am);
 
    return am;
 }
 
-static int instruction_imm(char **p, int pass, idesc *instr)
+static int instruction_imm(char **p, idesc *instr)
 {
    int am = AM_IMM;
    value v;
@@ -923,11 +951,11 @@ static int instruction_imm(char **p, int pass, idesc *instr)
    if (pass == 2) {
       if (UNDEFINED(v)) error(ERR_UNDEF);
    }
-   emit_instr_1(instr, am, (u8)to_byte(v).v, pass);
+   emit_instr_1(instr, am, (u8)to_byte(v).v);
    return am;
 }
 
-static int instruction_rel(int pass, idesc *instr, value v)
+static int instruction_rel(idesc *instr, value v)
 {
    int am = AM_REL;
    u16 pct = pc + 2u;
@@ -944,13 +972,13 @@ static int instruction_rel(int pass, idesc *instr, value v)
    }
    if (v.v >= pct) off = v.v - pct;
    else off = (u16)((~0u) - (pct - v.v - 1u));
-   emit_instr_1(instr, am, off & 0xffu, pass);
+   emit_instr_1(instr, am, off & 0xffu);
 
    return am;
 }
 
 /* handle indirect addressing modes */
-static int instruction_ind(char **p, int pass, idesc *instr)
+static int instruction_ind(char **p, idesc *instr)
 {
    char id[ID_LEN];
    int am = AM_INV;
@@ -994,17 +1022,17 @@ static int instruction_ind(char **p, int pass, idesc *instr)
    }
 
    if (am == AM_IND) {
-      emit_instr_2(instr, am, v.v, pass);
+      emit_instr_2(instr, am, v.v);
    }
    else {
-      emit_instr_1(instr, am, (u8)v.v, pass);
+      emit_instr_1(instr, am, (u8)v.v);
    }
 
    return am;
 }
 
 /* handle absolute x and y, zeropage x and y addressing modes */
-static int instruction_abxy_zpxy(char **p, int pass, idesc *instr, value v)
+static int instruction_abxy_zpxy(char **p, idesc *instr, value v)
 {
    char id[ID_LEN];
    int am = AM_INV;
@@ -1029,17 +1057,17 @@ static int instruction_abxy_zpxy(char **p, int pass, idesc *instr, value v)
    }
 
    if ((am == AM_ZPX) || (am == AM_ZPY)) {
-      emit_instr_1(instr, am, (u8) v.v, pass);
+      emit_instr_1(instr, am, (u8) v.v);
    }
    else {
-      emit_instr_2(instr, am, v.v, pass);
+      emit_instr_2(instr, am, v.v);
    }
 
    return am;
 }
 
 /* handle absolute and zeropage addressing modes */
-static int instruction_abs_zp(int pass, idesc *instr, value v)
+static int instruction_abs_zp(idesc *instr, value v)
 {
    int am = AM_INV;
 
@@ -1048,21 +1076,21 @@ static int instruction_abs_zp(int pass, idesc *instr, value v)
       if (pass == 2) {
          if (UNDEFINED(v)) error(ERR_UNDEF);
       }
-      emit_instr_1(instr, am, (u8)v.v, pass);
+      emit_instr_1(instr, am, (u8)v.v);
    }
    else if (AM_VALID(*instr, AM_ABS)) {
       am = AM_ABS;
       if (pass == 2) {
          if (UNDEFINED(v)) error(ERR_UNDEF);
       }
-      emit_instr_2(instr, am, v.v, pass);
+      emit_instr_2(instr, am, v.v);
    }
    else error(ERR_AM);
    return am;
 }
 
 /* process one instruction */
-static void instruction(char **p, int pass)
+static void instruction(char **p)
 {
    char id[ID_LEN];
    idesc *instr;
@@ -1077,15 +1105,15 @@ static void instruction(char **p, int pass)
    /* if found get addressing mode */
    skip_white_and_comment(p);
    if (IS_END(**p)) {
-      am = instruction_imp_acc(pass, instr);
+      am = instruction_imp_acc(instr);
    }
    else if (**p == '#') {
-      am = instruction_imm(p, pass, instr);
+      am = instruction_imm(p, instr);
    }
 
    /* handle indirect addressing modes */
    else if (**p == '(') {
-      am = instruction_ind(p, pass, instr);
+      am = instruction_ind(p, instr);
    }
 
    /* relative and absolute addressing modes */
@@ -1094,16 +1122,16 @@ static void instruction(char **p, int pass)
       skip_white(p);
       /* relative instruction mode if instruction supports it */
       if (instr->op[AM_REL] != INV) {
-         am = instruction_rel(pass, instr, v);
+         am = instruction_rel(instr, v);
       }
       /* else we go through the possible absolute addressing modes */
       else if (**p == ',') {
          skip_curr_and_white(p);
-         am = instruction_abxy_zpxy(p, pass, instr, v);
+         am = instruction_abxy_zpxy(p, instr, v);
       }
       /* must be absolute or zeropage addressing */
       else {
-         am = instruction_abs_zp(pass, instr, v);
+         am = instruction_abs_zp(instr, v);
       }
    }
 
@@ -1130,7 +1158,7 @@ static int string_lit(char **p, char *buf, int bufsize)
    return (int)(*p - start - 2);
 }
 
-static void directive_byte(char **p, int pass)
+static void directive_byte(char **p)
 {
    value v;
    int next, len;
@@ -1144,7 +1172,7 @@ static void directive_byte(char **p, int pass)
          tp = *p + 1;
          len = string_lit(p, NULL, 0);
          pc += (u16)len;
-         emit(tp, (u16)len, pass);
+         emit(tp, (u16)len);
       }
       else {
          v = expr(p);
@@ -1153,7 +1181,7 @@ static void directive_byte(char **p, int pass)
             if (UNDEFINED(v)) error (ERR_UNDEF);
             if (NUM_TYPE(v.v) != TYPE_BYTE) error(ERR_NO_BYTE);
          }
-         emit_byte((u8)to_byte(v).v, pass);
+         emit_byte((u8)to_byte(v).v);
 
          pc++;
       }
@@ -1167,7 +1195,7 @@ static void directive_byte(char **p, int pass)
    while (next);
 }
 
-static void directive_word(char **p, int pass)
+static void directive_word(char **p)
 {
    value v;
    int next;
@@ -1181,7 +1209,7 @@ static void directive_word(char **p, int pass)
       if (pass == 2) {
          if (UNDEFINED(v)) error (ERR_UNDEF);
       }
-      emit_word(v.v, pass);
+      emit_word(v.v);
 
       pc+=2;
       skip_white(p);
@@ -1295,10 +1323,9 @@ static void pop_pos_stack(char **p)
    list_statements = pos_stk[pos_stk_ptr].list_statements;
 }
 
-static void directive_include(char **p, int pass)
+static void directive_include(char **p)
 {
    asm_file *file;
-   (void)pass;
 
    /* read filename */
    skip_white(p);
@@ -1321,7 +1348,7 @@ static void directive_include(char **p, int pass)
    line = 1;
 }
 
-static void directive_fill(char **p, int pass)
+static void directive_fill(char **p)
 {
    value count, filler;
 
@@ -1348,7 +1375,7 @@ static void directive_fill(char **p, int pass)
    oc += count.v;
 }
 
-static void directive_binary(char **p, int pass)
+static void directive_binary(char **p)
 {
    /* syntax: .binary "file"[,skip[,count]] */
    FILE *file;
@@ -1477,7 +1504,7 @@ static void echo(char **p)
    puts("");   
 }
 
-static void directive_echo(char **p, int pass)
+static void directive_echo(char **p)
 {
    if (pass == 1) {
       skip_to_eol(p);
@@ -1486,7 +1513,7 @@ static void directive_echo(char **p, int pass)
    echo(p);
 }
 
-static void directive_diagnostic(char **p, int pass, int level)
+static void directive_diagnostic(char **p, int level)
 {
    /* warnings and errors are processed at pass 1 */
 
@@ -1505,7 +1532,7 @@ static void directive_diagnostic(char **p, int pass, int level)
    }
 }
 
-static int directive(char **p, int pass)
+static int directive(char **p)
 {
    char id[ID_LEN];
    value v;
@@ -1519,29 +1546,29 @@ static int directive(char **p, int pass)
       pc = v.v;
    }
    else if (!strcmp(id, "BYTE")) {
-      directive_byte(p, pass);
+      directive_byte(p);
    }
    else if (!strcmp(id, "WORD")) {
-      directive_word(p, pass);
+      directive_word(p);
    }
    else if (!strcmp(id, "FILL")) {
-      directive_fill(p, pass);
+      directive_fill(p);
    }
    else if (!strcmp(id, "INCLUDE")) {
-      directive_include(p, pass);
+      directive_include(p);
       again = 1;
    }
    else if (!strcmp(id, "BINARY")) {
-      directive_binary(p, pass);
+      directive_binary(p);
    }
    else if (!strcmp(id, "ECHO")) {
-      directive_echo(p, pass);
+      directive_echo(p);
    }
    else if (!strcmp(id, "ERROR")) {
-      directive_diagnostic(p, pass, 1);
+      directive_diagnostic(p, 1);
    }
    else if (!strcmp(id, "WARNING")) {
-      directive_diagnostic(p, pass, 0);
+      directive_diagnostic(p, 0);
    }
    else if (!strcmp(id, "NOLIST")) {
       listing = 0;
@@ -1576,7 +1603,7 @@ static int ismnemonic(const char *id)
 }
 
 /* processes one statement or assembler instruction */
-static int statement(char **p, int pass)
+static int statement(char **p)
 {
    char id1[ID_LEN];
    value v1;
@@ -1631,10 +1658,10 @@ static int statement(char **p, int pass)
    /* check for directive or instruction */
    if (**p == DIRECTIVE_LETTER) {
       (*p)++;
-      again = directive(p, pass);
+      again = directive(p);
    }
    else if (isalpha(**p)) {
-      instruction(p, pass);
+      instruction(p);
    }
    else error(ERR_STMT);
 
@@ -1850,7 +1877,7 @@ static int conditional_statement(char **p)
    return 0;
 }
 
-static void pass(char **p, int pass)
+static void do_pass(char **p)
 {
    int err;
    
@@ -1893,7 +1920,7 @@ static void pass(char **p, int pass)
             conditional = 1;
          }
          else if (process_statements) {
-            if (statement(p, pass)) {
+            if (statement(p)) {
                /* statement returns an "again" flag that is set by the include
                   directive. If true we have to start over again with new file,
                   position and line number */
@@ -2057,8 +2084,9 @@ int main(int argc, char *argv[])
    }
 
    /* first assembler pass */
+   pass = 1;
    ttext = current_file->text;
-   pass(&ttext, 1);
+   do_pass(&ttext);
    if (errors) {
       goto ret1;
    }
@@ -2074,9 +2102,11 @@ int main(int argc, char *argv[])
    }
 
    /* second assembler pass */
+   pass = 2;
    ttext = current_file->text;
-   code = malloc(oc);
-   pass(&ttext, 2);
+   code_size = oc;
+   code = malloc(code_size);
+   do_pass(&ttext);
    if (errors) {
       goto ret2;
    }

@@ -36,7 +36,7 @@ Copyright 2022-2023 by Bernd Boeckmann
        invoke the assembler with the source, output, and listing files as
        arguments:
 
-       asm6502 helloc64.a65 helloc64.prg helloc64.lst
+       asm6502 helloc64.a65 -o helloc64.prg -l helloc64.lst
 
           1: ; C64 Hello World
           2:
@@ -180,18 +180,19 @@ Copyright 2022-2023 by Bernd Boeckmann
    4.1 Input Files
 
        Input files should have .a65 as extension to distinguish it from
-       files written for other assemblers. Include-files should have .i65
-       as extension. The files should be encoded in the ASCII or UTF-8
-       character sets.
+       files written for other assemblers. The files should be encoded in
+       the ASCII or UTF-8 character sets.
 
    4.2 Data Types
 
        Two data types are known to the assembler:
 
-        -  8-bit _byte_ storing numbers of value 0 to 255.
+        -  _byte_: 8-bit in size, storing whole numbers between 0 to 255
+           inclusive.
 
-        -  16-bit _word_ storing positive numbers of value 0 to 65535.
-           Negative numbers from -32768 to -1 are stored in two-complement
+        -  _word_: 16-bit in size, storing positive whole numbers between
+           0 to 65535. Negative numbers may also be stored in the range
+           from -32768 to -1. Negative numbers are stored in two-complement
            representation.
 
    4.3 Symbols
@@ -396,7 +397,13 @@ Copyright 2022-2023 by Bernd Boeckmann
 
          .ECHO "hexadecimal representation of ", 4711, " is ", [$]4711
 
- 4.6.4 .FILL directive
+ 4.6.4 .ERROR directive
+
+       Aborts the assembly along with file name and line number
+       information. Accepts the same parameters as .ECHO for the error
+       message.
+
+ 4.6.5 .FILL directive
 
        Starting from the current position of the output file, emits as many
        bytes as given by the first argument. If the second argument is
@@ -408,7 +415,7 @@ Copyright 2022-2023 by Bernd Boeckmann
          .FILL 100       ; fill 100 bytes with zero
          .FILL 16, $EA   ; insert 16 NOPs ($EA) into the code
 
- 4.6.5 .IF, .ELSE and .ENDIF directives
+ 4.6.6 .IF, .ELSE and .ENDIF directives
 
        Conditionally assembles code depending on the value of the argument
        to .IF. If it is non-zero, the code between .IF and .ENDIF is
@@ -433,7 +440,7 @@ Copyright 2022-2023 by Bernd Boeckmann
        In listing files, the unprocessed lines are indicated by a minus
        after the line number instead of a colon.
 
- 4.6.6 .INCLUDE directive
+ 4.6.7 .INCLUDE directive
 
        Substitutes the directive with the contents of a file given by the
        argument for processing by the assembler.
@@ -442,7 +449,7 @@ Copyright 2022-2023 by Bernd Boeckmann
 
          .INCLUDE "c64prg.i65"
 
- 4.6.7 .LIST and .NOLIST
+ 4.6.8 .LIST and .NOLIST
 
        If a listing file is given via command line, listing generation is
        initially enabled. If the user wants some parts of the code to be
@@ -455,7 +462,7 @@ Copyright 2022-2023 by Bernd Boeckmann
        A .NOLIST inside an include file does not propagate to the parent
        file.
 
- 4.6.8 .ORG directive
+ 4.6.9 .ORG directive
 
        Sets the address counter for the currently processed instruction
        to the numeric value of the argument. Does not modify the offset
@@ -466,7 +473,12 @@ Copyright 2022-2023 by Bernd Boeckmann
 
          .ORG $0801
 
- 4.6.9 .WORD directive
+4.6.10 .WARNING directive
+
+       Prints a warning along with file name and line number information.
+       Accepts the same parameters as .ECHO for the warning message.
+
+4.6.11 .WORD directive
 
        Produces one or more output words.
 
@@ -575,7 +587,20 @@ Copyright 2022-2023 by Bernd Boeckmann
          ORA (b,X)
          ORA (b),Y
 
-A Instruction Reference
+A Command Line Syntax
+---------------------
+
+         Usage: asm6502 [-q] input -o output [-l listing] [VAR=number]...
+         
+           -q             be quiet, unless an error occured
+           -o output      set output file name
+           -l listing     set optional listing file name
+
+       Variables defined from the command line are known to the assembler
+       when assembling files. The numbers are parsed like number literals
+       in the source code.
+
+B Instruction Reference
 -----------------------
 
        In the following instruction list, #$42 is a representative for a
@@ -589,7 +614,7 @@ A Instruction Reference
        instruction argument. The syntax of the different addressing modes
        is described in one of the previous chapters.
 
-   A.1 ADC - add with carry
+   B.1 ADC - add with carry
 
        Flags: N Z C V
 
@@ -602,7 +627,7 @@ A Instruction Reference
          61 15      adc ($15,x)
          71 15      adc ($15),y
 
-   A.2 AND - bit-wise and with accumulator
+   B.2 AND - bit-wise and with accumulator
 
        Flags: N Z
 
@@ -615,7 +640,7 @@ A Instruction Reference
          21 15      and ($15,x)
          31 15      and ($15),y
 
-   A.3 ASL - arithmetic shift left
+   B.3 ASL - arithmetic shift left
 
        Flags: N Z C
 
@@ -625,19 +650,19 @@ A Instruction Reference
          0E 11 47   asl $4711
          1E 11 47   asl $4711,x
 
-   A.4 BCC - branch if carry cleared
+   B.4 BCC - branch if carry cleared
 
          90 FE      bcc @
 
-   A.5 BCS - branch if carry set
+   B.5 BCS - branch if carry set
 
          B0 FE      bcs @
 
-   A.6 BEQ - branch if equal
+   B.6 BEQ - branch if equal
 
          F0 FE      beq @
 
-   A.7 BIT - test bits
+   B.7 BIT - test bits
 
        Negative flag becomes the bit 7 of the operand, overflow flag
        becomes bit 6 of the operand. Zero flag is set if the bit-wise and
@@ -649,19 +674,19 @@ A Instruction Reference
          24 15      bit $15
          2C 11 47   bit $4711
 
-   A.8 BMI - branch if negative
+   B.8 BMI - branch if negative
 
          30 FE      bmi @
 
-   A.9 BNE - branch if not equal
+   B.9 BNE - branch if not equal
 
          D0 FE      bne @
 
-  A.10 BPL - branch if positive
+  B.10 BPL - branch if positive
 
          10 FE      bpl @
 
-  A.11 BRK - force break
+  B.11 BRK - force break
 
        BRK cannot be masked by setting interrupt disable flag. Forces the
        processor to continue at the address stored in the IRQ vector $FFFE.
@@ -672,39 +697,39 @@ A Instruction Reference
 
          00         brk
 
-  A.12 BVC - branch if overflow flag cleared
+  B.12 BVC - branch if overflow flag cleared
 
          50 FE      bvc @
 
-  A.13 BVS - branch if overflow flag set
+  B.13 BVS - branch if overflow flag set
 
          70 FE      bvs @
 
-  A.14 CLC - clear carry flag
+  B.14 CLC - clear carry flag
 
        Flags: C=0
 
          18         clc
 
-  A.15 CLD - clear decimal flag
+  B.15 CLD - clear decimal flag
 
        Flags: D=0
 
          D8         cld
 
-  A.16 CLI - clear interrupt disable flag
+  B.16 CLI - clear interrupt disable flag
 
        Flags: I=0
 
          58         cli
 
-  A.17 CLV - clear overflow flag
+  B.17 CLV - clear overflow flag
 
        Flags: V=0
 
          B8         clv
 
-  A.18 CMP - compare with accumulator
+  B.18 CMP - compare with accumulator
 
        Flags: N Z C
 
@@ -717,7 +742,7 @@ A Instruction Reference
          C1 15      cmp ($15,x)
          D1 15      cmp ($15),y
 
-  A.19 CPX - compare with X register
+  B.19 CPX - compare with X register
 
        Flags: N Z C
 
@@ -725,7 +750,7 @@ A Instruction Reference
          E4 15      cpx $15
          EC 11 47   cpx $4711
 
-  A.20 CPY - compare with Y register
+  B.20 CPY - compare with Y register
 
        Flags: N Z C
 
@@ -733,7 +758,7 @@ A Instruction Reference
          C4 15      cpy $15
          CC 11 47   cpy $4711
 
-  A.21 DEC - decrement
+  B.21 DEC - decrement
 
        Flags: N Z
 
@@ -742,19 +767,19 @@ A Instruction Reference
          CE 11 47   dec $4711
          DE 11 47   dec $4711,x
 
-  A.22 DEX - decrement X register
+  B.22 DEX - decrement X register
 
        Flags: N Z
 
          CA         dex
 
-  A.23 DEY - decrement Y register
+  B.23 DEY - decrement Y register
 
        Flags: N Z
 
          88         dey
 
-  A.24 EOR - exclusive or
+  B.24 EOR - exclusive or
 
        Flags: N Z
 
@@ -767,7 +792,7 @@ A Instruction Reference
          41 15      eor ($15,x)
          51 15      eor ($15),y
 
-  A.25 INC - increment
+  B.25 INC - increment
 
        Flags: N Z
 
@@ -776,28 +801,28 @@ A Instruction Reference
          EE 11 47   inc $4711
          FE 11 47   inc $4711,x
 
-  A.26 INX - increment X register
+  B.26 INX - increment X register
 
        Flags: N Z
 
          E8         inx
 
-  A.27 INY - increment Y register
+  B.27 INY - increment Y register
 
        Flags: N Z
 
          C8         iny
 
-  A.28 JMP - jump
+  B.28 JMP - jump
 
          4C 11 47   jmp $4711
          6C 11 47   jmp ($4711)
 
-  A.29 JSR - call subroutine
+  B.29 JSR - call subroutine
 
          20 11 47   jsr $4711
 
-  A.30 LDA - load accumulator
+  B.30 LDA - load accumulator
 
        Flags: N Z
 
@@ -810,7 +835,7 @@ A Instruction Reference
          A1 15      lda ($15,x)
          B1 15      lda ($15),y
 
-  A.31 LDX - load X register
+  B.31 LDX - load X register
 
        Flags: N Z
 
@@ -820,7 +845,7 @@ A Instruction Reference
          AE 11 47   ldx $4711
          BE 11 47   ldx $4711,y
 
-  A.32 LDY - load Y register
+  B.32 LDY - load Y register
 
        Flags: N Z
 
@@ -830,7 +855,7 @@ A Instruction Reference
          AC 11 47   ldy $4711
          BC 11 47   ldy $4711,x
 
-  A.33 LSR - logical shift right
+  B.33 LSR - logical shift right
 
        Flags: N=0 Z C
 
@@ -840,11 +865,11 @@ A Instruction Reference
          4E 11 47   lsr $4711
          5E 11 47   lsr $4711,x
 
-  A.34 NOP - no-operation
+  B.34 NOP - no-operation
 
          EA         nop
 
-  A.35 ORA - bit-wise or with accumulator
+  B.35 ORA - bit-wise or with accumulator
 
        Flags: N Z
 
@@ -857,27 +882,27 @@ A Instruction Reference
          01 15      ora ($15,x)
          11 15      ora ($15),y
 
-  A.36 PHA - push accumulator on stack
+  B.36 PHA - push accumulator on stack
 
          48         pha
 
-  A.37 PHP - push flags on stack
+  B.37 PHP - push flags on stack
 
          08         php
 
-  A.38 PLA - pop accumulator from stack
+  B.38 PLA - pop accumulator from stack
 
        Flags: N Z
 
          68         pla
 
-  A.39 PLP - pop flags from stack
+  B.39 PLP - pop flags from stack
 
        Flags: N Z C I D V
 
          28         plp
 
-  A.40 ROL - rotate left through carry
+  B.40 ROL - rotate left through carry
 
        Flags: N Z C
 
@@ -887,7 +912,7 @@ A Instruction Reference
          2E 11 47   rol $4711
          3E 11 47   rol $4711,x
 
-  A.41 ROR - rotate right through carry
+  B.41 ROR - rotate right through carry
 
        Flags: N Z C
 
@@ -897,17 +922,17 @@ A Instruction Reference
          6E 11 47   ror $4711
          7E 11 47   ror $4711,x
 
-  A.42 RTI - return from interrupt
+  B.42 RTI - return from interrupt
 
        Flags: N Z C I D V
 
          40         rti
 
-  A.43 RTS - return from subroutine
+  B.43 RTS - return from subroutine
 
          60         rts
 
-  A.44 SBC - subtract from accumulator with carry
+  B.44 SBC - subtract from accumulator with carry
 
        Flags: N Z C V
 
@@ -920,25 +945,25 @@ A Instruction Reference
          E1 15      sbc ($15,x)
          F1 15      sbc ($15),y
 
-  A.45 SEC - set carry flag
+  B.45 SEC - set carry flag
 
        Flags: C=1
 
          38         sec
 
-  A.46 SED - set decimal flag
+  B.46 SED - set decimal flag
 
        Flags: D=1
 
          F8         sed
 
-  A.47 SEI - set interrupt disable flag
+  B.47 SEI - set interrupt disable flag
 
        Flags: I=1
 
          78         sei
 
-  A.48 STA - store accumulator
+  B.48 STA - store accumulator
 
          85 15      sta $15
          95 15      sta $15,x
@@ -948,52 +973,52 @@ A Instruction Reference
          81 15      sta ($15,x)
          91 15      sta ($15),y
 
-  A.49 STX - store X register
+  B.49 STX - store X register
 
          86 15      stx $15
          96 15      stx $15,y
          8E 11 47   stx $4711
 
-  A.50 STY - store Y register
+  B.50 STY - store Y register
 
          84 15      sty $15
          94 15      sty $15,x
          8C 11 47   sty $4711
 
-  A.51 TAX - transfer X to accumulator
+  B.51 TAX - transfer X to accumulator
 
          AA         tax
 
        Flags: N Z
 
-  A.52 TAY - transfer Y to accumulator
+  B.52 TAY - transfer Y to accumulator
 
          A8         tay
 
        Flags: N Z
 
-  A.53 TSX - transfer X to stack pointer
+  B.53 TSX - transfer X to stack pointer
 
        Flags: N Z
 
          BA         tsx
 
-  A.54 TXA - transfer accumulator to X
+  B.54 TXA - transfer accumulator to X
 
        Flags: N Z
 
          8A         txa
 
-  A.55 TXS - transfer stack pointer to X
+  B.55 TXS - transfer stack pointer to X
 
        Flags: N Z
 
          9A         txs
 
-  A.56 TYA - transfer accumulator to Y
+  B.56 TYA - transfer accumulator to Y
 
        Flags: N Z
 
          98         tya
 
-[So 23 Apr 19:39:01 2023]
+[Di 25 Apr 14:40:40 2023]
