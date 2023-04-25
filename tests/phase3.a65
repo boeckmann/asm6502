@@ -1,0 +1,8 @@
+.if X
+  .fill 2
+.else
+  X = 1
+  .fill 1
+.endif
+
+sentinal:

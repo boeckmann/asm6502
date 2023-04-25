@@ -1,0 +1,11 @@
+.echo1 "I am written at the first pass!"
+.echo "I am written at the second pass!"
+
+.if X
+	.echo "X is defined as ", X
+	.fill X
+.else
+	.echo "X is undefined, defaulting to 1"
+	X = 1
+	.fill X
+.endif

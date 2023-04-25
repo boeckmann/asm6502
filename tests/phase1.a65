@@ -1,0 +1,6 @@
+; pass 2 output larger than pass 1
+.if HELLO
+.byte HELLO
+.else
+HELLO = 1
+.endif

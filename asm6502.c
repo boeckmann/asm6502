@@ -256,7 +256,7 @@ static char* err_msg[] = {
 #define ERR_PHASE       30
    "symbol value mismatch between pass one and two",
 #define ERR_PHASE_SIZE  31
-   "code size mismatch between pass one and two"
+   "pass two code size greater than pass one code size"
 };
 
 #define ERROR_NORM  1
@@ -430,9 +430,10 @@ static void define_variable(const char *id, const value v, symbol *parent)
       if (pass == 1) error(ERR_REDEF);
       else error(ERR_PHASE);
    }
+
    sym->value.v = v.v;
    sym->value.defined = v.defined;
-   sym->filename = current_file->filename;
+   sym->filename = (current_file) ? current_file->filename : NULL;
    sym->line = line;
 
    /* if the type is already set do not change it */
@@ -1434,8 +1435,8 @@ static void directive_if(char **p)
 
    if (process_statements) {
       v = expr(p);
-      if (!DEFINED(v)) error(ERR_UNDEF);
-      process_statements = v.v != 0;
+      /*if (!DEFINED(v)) error(ERR_UNDEF);*/
+      process_statements = DEFINED(v) && v.v != 0;
       if_stack[if_stack_count].condition_met = process_statements;
    }
    else {
@@ -1506,7 +1507,18 @@ static void echo(char **p)
 
 static void directive_echo(char **p)
 {
+   /* echo on second pass */
    if (pass == 1) {
+      skip_to_eol(p);
+      return;
+   }
+   echo(p);
+}
+
+static void directive_echo1(char **p)
+{
+   /* echo on first pass */
+   if (pass == 2) {
       skip_to_eol(p);
       return;
    }
@@ -1563,6 +1575,9 @@ static int directive(char **p)
    }
    else if (!strcmp(id, "ECHO")) {
       directive_echo(p);
+   }
+   else if (!strcmp(id, "ECHO1")) {
+      directive_echo1(p);
    }
    else if (!strcmp(id, "ERROR")) {
       directive_diagnostic(p, 1);
@@ -2087,6 +2102,7 @@ int main(int argc, char *argv[])
    pass = 1;
    ttext = current_file->text;
    do_pass(&ttext);
+   code_size = oc;
    if (errors) {
       goto ret1;
    }
@@ -2098,15 +2114,19 @@ int main(int argc, char *argv[])
          errors = 1;
          goto ret1;
       }
-      if (!flag_quiet) printf("writing listing to %s\n", argv[3]);
    }
 
    /* second assembler pass */
    pass = 2;
    ttext = current_file->text;
-   code_size = oc;
    code = malloc(code_size);
    do_pass(&ttext);
+
+   if (oc != code_size && !errors) {
+      printf("error: pass two code size less than pass one code size\n");
+      errors++;
+   }
+
    if (errors) {
       goto ret2;
    }
@@ -2114,8 +2134,11 @@ int main(int argc, char *argv[])
    if (listing)
       list_symbols();
 
-   if (!flag_quiet) printf("output size = %d bytes\n", oc);
-   fflush(stdout);
+   if (!flag_quiet) {
+      printf("output file %s, %d bytes written\n", output_filename, oc);
+      if (listing_filename)
+         printf("listing written to %s\n", listing_filename);
+   }
 
    if (!save_code(output_filename, code, oc)) {
       printf("error saving file\n");
