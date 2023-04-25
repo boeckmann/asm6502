@@ -493,7 +493,7 @@ static void skip_curr_and_white(char **p)
 
 static void skip_to_eol(char **p)
 {
-   while (**p != 0x0a && **p != 0x0d) (*p)++;
+   while (**p != 0 && **p != 0x0a && **p != 0x0d) (*p)++;
 }
 
 static int starts_with(char *text, char *s)
@@ -781,12 +781,28 @@ static value comparison(char **p)
          case '!': res.v = res.v != n2.v; break;
          case '<': res.v = (op2 == '=') ? res.v <= n2.v : res.v < n2.v; break;
          case '>': res.v = (op2 == '=') ? res.v >= n2.v : res.v > n2.v; break;
-         }         
+         }   
+         SET_DEFINED(res);
       }
-      else res.v = 0;
-
-      INFERE_DEFINED(res, n2);
-      if (DEFINED(res) && res.v) res.v = 1;
+      else if (!DEFINED(res) && !DEFINED(n2)) {
+         switch (op) {
+         case '=': res.v = 1; SET_DEFINED(res); break;
+         case '!': res.v = 0; SET_DEFINED(res); break; 
+         default: res.v = 0; res.defined = 0;       
+         }
+         SET_DEFINED(res);         
+      }
+      else {
+         switch(op) {
+         case '=': res.v = ((DEFINED(res)) ? res.v : 0) 
+                           == ((DEFINED(n2)) ? n2.v : 0);
+                   SET_DEFINED(res); break;
+         case '!': res.v = ((DEFINED(res)) ? res.v : 0) 
+                           != ((DEFINED(n2)) ? n2.v : 0);
+                   SET_DEFINED(res); break;
+         default: res.v = 0; res.defined = 0;
+         }
+      }
       SET_TYPE(res, TYPE_BYTE);
   }
 
