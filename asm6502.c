@@ -874,27 +874,27 @@ static value logical_or(char **p)
    return res;
 }
 
-static value expr(char **p)
+static value conversion(char **p)
 {
    value v;
 
    skip_white(p);
    if (**p == '>') {
       (*p)++;
-      v = logical_or(p);
+      v = conversion(p);
       SET_TYPE(v, TYPE_BYTE);
       v.v = v.v >> 8;
    }
    else if (**p == '<') {
       (*p)++;
-      v = logical_or(p);
+      v = conversion(p);
       SET_TYPE(v, TYPE_BYTE);
       v.v = v.v & 0xff;
    }
    else if (starts_with(*p, "[b]")) {
       /* lossless byte conversion */
       *p += 3;
-      v = logical_or(p);
+      v = conversion(p);
       if (DEFINED(v) && v.v > 0xff)
          error(ERR_BYTERNG);
       SET_TYPE(v, TYPE_BYTE);
@@ -902,11 +902,33 @@ static value expr(char **p)
    else if (starts_with(*p, "[w]")) {
       /* lossless word conversion */
       *p += 3;
-      v = logical_or(p);
+      v = conversion(p);
       SET_TYPE(v, TYPE_WORD);
    }
    else v = logical_or(p);
    return v;
+}
+
+static value defined_or_else(char **p)
+{
+   value res, n2;
+
+   res = conversion(p); 
+
+   skip_white(p);
+   while ((**p == '?' && *(*p+1) == ':')) {
+      *p += 2;
+      n2 = conversion(p);
+
+      if (!DEFINED(res)) res = n2;
+   }
+
+   return res;
+}
+
+static value expr(char **p)
+{
+   return defined_or_else(p);
 }
 
 static void upcase(char *p)
