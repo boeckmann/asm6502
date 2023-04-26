@@ -269,10 +269,10 @@ Copyright 2022-2023 by Bernd Boeckmann
          'x'   ; byte typed ASCII character code of x
 
        The address counter symbol @ returns the address of the currently
-       assembled instruction. The symbol ? returns an undefined value of
+       assembled instruction. The symbol .? returns an undefined value of
        unknown type.
 
-         ?     ; undefined value
+         .?    ; undefined value
          @     ; current address
 
        Label and variable names evaluate to their respective value.
@@ -289,22 +289,22 @@ Copyright 2022-2023 by Bernd Boeckmann
 
         -  expressions enclosed by parentheses ()
 
-        -  unary bit-wise complement ~, and logical not !
+        -  unary bit-wise complement ~, logical not !, and is-defined ?
 
         -  multiplication *, division /, bit-wise and &, logical left <<
-           and right >> shift.
+           and right >> shift
 
         -  unary plus and binary addition +, unary minus and subtraction -,
            bit-wise or |, exclusive or ^
+
+        -  unary low < and high > byte select, lossless unary conversion
+           operators [b] and [w]
 
         -  comparison operators: ==, !=, <, >, <=, >=
 
         -  logical and &&
 
         -  logical or ||
-
-        -  unary low < and high > byte select, lossless unary conversion
-           operators [b] and [w]
 
         -  defined-or-else ?:
 
@@ -368,7 +368,7 @@ Copyright 2022-2023 by Bernd Boeckmann
 
        Example:
 
-         Y = ?
+         Y = .?
          Z = X ?: Y ?: $DEAD  ; assign $DEAD to Z
                               ; because X and Y are undefined
 
@@ -395,7 +395,18 @@ Copyright 2022-2023 by Bernd Boeckmann
        may not produce output data. Names of directives start with a dot.
        The directives currently known to the assembler are:
 
- 4.6.1 .BINARY directive
+ 4.6.1 .ASSERT and .ASSERT1
+
+       Tests if the expression given as argument returns a true value,
+       otherwise terminated with an error. .ASSERT runs on pass two, and
+       ASSERT1 runs on pass one. The arguments following the first one are
+       handled like the .ECHO directive does it.
+
+       Example:
+
+         .ASSERT 2 > 1, "arithmetic implementation is flawed"
+
+ 4.6.2 .BINARY directive
 
        Copies binary data from a file to the output file. Numeric
        expressions specifying a start offset and a length may be given
@@ -408,7 +419,7 @@ Copyright 2022-2023 by Bernd Boeckmann
          .BINARY "SPRITE.DAT", $10     ; skip the first 16 bytes
          .BINARY "SPRITE.DAT", $10, 64 ; copy 64 bytes from offset 16
 
- 4.6.2 .BYTE directive
+ 4.6.3 .BYTE directive
 
        Produces one or more output bytes. The arguments are separated by a
        comma. Numeric expressions or strings may be used as arguments. The
@@ -421,7 +432,7 @@ Copyright 2022-2023 by Bernd Boeckmann
          .BYTE 47, 11
          .BYTE "Hello, World", 13, 10
 
- 4.6.3 .ECHO and .ECHO1 directives
+ 4.6.4 .ECHO and .ECHO1 directives
 
        Print the arguments to standard output. .ECHO does it on the
        second assembler pass, while .ECHO1 does it on the first pass. The
@@ -434,13 +445,13 @@ Copyright 2022-2023 by Bernd Boeckmann
 
          .ECHO "hexadecimal representation of ", 4711, " is ", [$]4711
 
- 4.6.4 .ERROR directive
+ 4.6.5 .ERROR directive
 
        Aborts the assembly along with file name and line number
        information. Accepts the same parameters as .ECHO for the error
        message.
 
- 4.6.5 .FILL directive
+ 4.6.6 .FILL directive
 
        Starting from the current position of the output file, emits as many
        bytes as given by the first argument. If the second argument is
@@ -452,7 +463,7 @@ Copyright 2022-2023 by Bernd Boeckmann
          .FILL 100       ; fill 100 bytes with zero
          .FILL 16, $EA   ; insert 16 NOPs ($EA) into the code
 
- 4.6.6 .IF, .IFN, .ELSE and .ENDIF directives
+ 4.6.7 .IF, .IFN, .ELSE and .ENDIF directives
 
        Conditionally assembles code if the condition of the argument to .IF
        or .IFN is met. For .IF, the condition is met if the argument yields
@@ -480,14 +491,14 @@ Copyright 2022-2023 by Bernd Boeckmann
        In listing files, the unprocessed lines are indicated by a minus
        after the line number instead of a colon.
 
- 4.6.7 .IFDEF and .IFNDEF
+ 4.6.8 .IFDEF and .IFNDEF
 
        An argument to .IFDEF is considered true, if its value is defined.
        An argument to .IFNDEF is considered true, if its value is
        undefined. Otherwise, the directives behave like their .IF and .IFN
        counterparts.
 
- 4.6.8 .INCLUDE directive
+ 4.6.9 .INCLUDE directive
 
        Substitutes the directive with the contents of a file given by the
        argument for processing by the assembler.
@@ -496,7 +507,7 @@ Copyright 2022-2023 by Bernd Boeckmann
 
          .INCLUDE "c64prg.i65"
 
- 4.6.9 .LIST and .NOLIST
+4.6.10 .LIST and .NOLIST
 
        If a listing file is given via command line, listing generation is
        initially enabled. If the user wants some parts of the code to be
@@ -509,7 +520,7 @@ Copyright 2022-2023 by Bernd Boeckmann
        A .NOLIST inside an include file does not propagate to the parent
        file.
 
-4.6.10 .ORG directive
+4.6.11 .ORG directive
 
        Sets the address counter for the currently processed instruction
        to the numeric value of the argument. Does not modify the offset
@@ -520,12 +531,12 @@ Copyright 2022-2023 by Bernd Boeckmann
 
          .ORG $0801
 
-4.6.11 .WARNING directive
+4.6.12 .WARNING directive
 
        Prints a warning along with file name and line number information.
        Accepts the same parameters as .ECHO for the warning message.
 
-4.6.12 .WORD directive
+4.6.13 .WORD directive
 
        Produces one or more output words.
 
@@ -1068,4 +1079,4 @@ B Instruction Reference
 
          98         tya
 
-[Mi 26 Apr 00:51:19 2023]
+[Mi 26 Apr 11:57:25 2023]
