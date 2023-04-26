@@ -1900,10 +1900,14 @@ static int sym_cmp_name(const void *a, const void *b)
 static int sym_cmp_val(const void *a, const void *b)
 {
    const symbol *sa, *sb;
+   u16 va, vb;
    sa = *(const symbol **)a;
    sb = *(const symbol **)b;
 
-   return sa->value.v - sb->value.v;
+   va = (DEFINED(sa->value)) ? sa->value.v : 0;
+   vb = (DEFINED(sb->value)) ? sb->value.v : 0;
+
+   return (va != vb) ? va - vb : strcmp(sa->name, sb->name);
 }
 
 static symbol **symtbl_to_array(void)
