@@ -4,7 +4,6 @@
 .assert 2+3*5 == 17
 .assert 2*3+4*5 == 26
 .assert 7 / 2 == 3
-.assert $F00F ^ $0FF0 == $FFFF
 
 .assert 1 << 2 == 4
 .assert $FF >> 4 == $F
@@ -22,9 +21,9 @@
 ; test bit-wise operators
 .assert %00000011 | %11000000 == %11000011
 .assert %10000011 & %11000000 == %10000000
+.assert $F00F ^ $0FF0 == $FFFF
 
 ; test defined-or-else
 .assert .? ?: 1
 .assert UNKNOWN ?: 2
 .assert .? ?: UNKNOWN ?: 3
-

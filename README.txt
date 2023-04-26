@@ -287,65 +287,36 @@ Copyright 2022-2023 by Bernd Boeckmann
 
        The supported operations from highest to lowest precedence are:
 
-        -  expressions enclosed by parentheses ()
+        -  Expressions enclosed by parentheses ()
 
-        -  unary bit-wise complement ~, logical not !, and is-defined ?
+        -  bit-wise complement ~, logical negation !, and is-defined ?
+           operators, all unary and right-associative
 
-        -  multiplication *, division /, bit-wise and &, logical left <<
+        -  Multiplication *, division /, bit-wise and &, logical left <<
            and right >> shift
 
-        -  unary plus and binary addition +, unary minus and subtraction -,
+        -  Unary plus and binary addition +, unary minus and subtraction -,
            bit-wise or |, exclusive or ^
 
-        -  unary low < and high > byte select, lossless unary conversion
+        -  Unary low < and high > byte select, lossless unary conversion
            operators [b] and [w]
 
-        -  comparison operators: ==, !=, <, >, <=, >=
+        -  The comparison operators are ==, !=, <, >, <=, >=
 
-        -  logical and &&
+        -  Logical and &&
 
-        -  logical or ||
+        -  Logical or ||
 
-        -  defined-or-else ?:
+        -  Defined-or-else ?:
 
- 4.4.3 Conversion Operators
+ 4.4.3 Bit-wise Operators
 
-       The convert to byte [b] and convert to word [w] operators change the
-       data type of their expression. If the expression does not fit into a
-       byte, [b] raises an error. The operators also change the type of the
-       undefined value while retaining undefined as a value.
+       The bit-wise complement operator ~ respects the data type when
+       toggling bits. This means that ~1 becomes $FE, and not $FFFE. For
+       the other operators, type inference is performed like for the
+       arithmetic operators. ~ is right-associative.
 
- 4.4.4 Byte-select Operators
-
-       The low-byte select operator < returns the low byte of a word-sized
-       expression, or the unmodified value of a byte-sized expression. The
-       high-byte select operator > returns the high byte of a word-sized
-       expression shifted eight bits to the right. It returns zero for
-       byte-sized expressions. The resulting data type of both operators is
-       byte. If applied to an undefined argument, the result is undefined.
-
- 4.4.5 Logical Operators
-
-       The logical operators are logical and &&, logical or ||, and the
-       unary logical not !.
-
-       The logical operators return 1 as true value, and 0 as false value.
-       They return an undefined value if at least one of their arguments is
-       undefined. The logical or || operator is an exception to this rule.
-       It returns true if at least one of its arguments is true.
-
- 4.4.6 Comparison Operators
-
-       The comparison operators return 1 as true value, and 0 as false
-       value. They return an undefined value if at least one of their
-       arguments is undefined. The comparison operators are:
-
-        -  equality ==, and non-equality !=
-
-        -  greater than >, less than <, greater or equal than >=, and less
-           or equal than <=
-
- 4.4.7 Arithmetic Operators
+ 4.4.4 Arithmetic Operators
 
        The usual semantics for the arithmetic operators apply.
 
@@ -360,6 +331,39 @@ Copyright 2022-2023 by Bernd Boeckmann
          2+3*5     ; yields correct value 17
          <$4711    ; selects low byte $11
          255+255   ; of type word because >256
+
+ 4.4.5 Byte-select and Conversion Operators
+
+       The low-byte select operator < returns the low byte of a word-sized
+       expression, or the unmodified value of a byte-sized expression. The
+       high-byte select operator > returns the high byte of a word-sized
+       expression shifted eight bits to the right. It returns zero for
+       byte-sized expressions. The resulting data type of both operators is
+       byte. If applied to an undefined argument, the result is undefined.
+
+       The convert to byte [b] and convert to word [w] operators change the
+       data type of their expression. If the expression does not fit into a
+       byte, [b] raises an error. The operators also change the type of the
+       undefined value while retaining undefined as a value.
+
+ 4.4.6 Comparison and Logical Operators
+
+       The comparison operators return 1 as true value, and 0 as false
+       value. They return an undefined value if at least one of their
+       arguments is undefined.
+
+       The logical operators return an undefined value if at least one
+       of their arguments is undefined. The logical or || operator is an
+       exception to this rule. It returns true if at least one of its
+       arguments is true.
+
+       The logical negation operator ! is right-associative.
+
+ 4.4.7 Is-defined Operator
+
+       The unary, right associative is-defined operator ? returns true, if
+       its argument is defined. Otherwise, false is returned. The result is
+       of type byte.
 
  4.4.8 Defined-or-else Operator
 
@@ -1079,4 +1083,4 @@ B Instruction Reference
 
          98         tya
 
-[Mi 26 Apr 11:57:25 2023]
+[Mi 26 Apr 12:24:17 2023]

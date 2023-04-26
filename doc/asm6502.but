@@ -174,46 +174,27 @@ Expressions may be composed of arithmetic sub-expressions. Operator precedence i
 	
 The supported operations from highest to lowest precedence are:
 
-\b expressions enclosed by parentheses \cw{()}
+\b Expressions enclosed by parentheses \cw{()}
 
-\b unary bit-wise complement \cw{~}, logical not \cw{!}, and is-defined \cw{?}
+\b bit-wise complement \cw{~}, logical negation \cw{!}, and is-defined \cw{?} operators, all unary and right-associative
 
-\b multiplication \cw{*}, division \cw{/}, bit-wise and \cw{&}, logical left \cw{<<} and right \cw{>>} shift
+\b Multiplication \cw{*}, division \cw{/}, bit-wise and \cw{&}, logical left \cw{<<} and right \cw{>>} shift
 
-\b unary plus and binary addition \cw{+}, unary minus and subtraction \cw{-}, bit-wise or \cw{|}, exclusive or \cw{^}
+\b Unary plus and binary addition \cw{+}, unary minus and subtraction \cw{-}, bit-wise or \cw{|}, exclusive or \cw{^}
 
-\b unary low \cw{<} and high \cw{>} byte select, lossless unary conversion operators \cw{[b]} and \cw{[w]}
+\b Unary low \cw{<} and high \cw{>} byte select, lossless unary conversion operators \cw{[b]} and \cw{[w]}
 
-\b comparison operators: \cw{==}, \cw{!=}, \cw{<}, \cw{>}, \cw{<=}, \cw{>=}
+\b The comparison operators are \cw{==}, \cw{!=}, \cw{<}, \cw{>}, \cw{<=}, \cw{>=}
 
-\b logical and \cw{&&}
+\b Logical and \cw{&&}
 
-\b logical or \cw{||}
+\b Logical or \cw{||}
 
-\b defined-or-else \cw{?:}
+\b Defined-or-else \cw{?:}
 
-\S{}Conversion Operators
+\S{}Bit-wise Operators
 
-The convert to byte \cw{[b]} and convert to word \cw{[w]} operators change the data type of their expression. If the expression does not fit into a byte, \cw{[b]} raises an error. The operators also change the type of the undefined value while retaining undefined as a value.
-
-\S{}Byte-select Operators
-
-The low-byte select operator \cw{<} returns the low byte of a word-sized expression, or the unmodified value of a byte-sized expression. The high-byte select operator \cw{>} returns the high byte of a word-sized expression shifted eight bits to the right. It returns zero for byte-sized expressions. The resulting data type of both operators is byte. If applied to an undefined argument, the result is undefined.
-
-\S{}Logical Operators
-
-The logical operators are logical and \cw{&&}, logical or \cw{||}, and the unary logical not \cw{!}.
-
-The logical operators return 1 as true value, and 0 as false value. They return an undefined value if at least one of their arguments is undefined. The logical or \cw{||} operator is an exception to this rule. It returns true if at least one of its arguments is true.
-
-
-\S{}Comparison Operators
-
-The comparison operators return 1 as true value, and 0 as false value. They return an undefined value if at least one of their arguments is undefined.  The comparison operators are:
-
-\b equality \cw{==}, and non-equality \cw{!=}
-
-\b greater than \cw{>}, less than \cw{<}, greater or equal than \cw{>=}, and less or equal than \cw{<=}
+The bit-wise complement operator \cw{~} respects the data type when toggling bits. This means that \cw{~1} becomes \cw{$FE}, and not \cw{$FFFE}. For the other operators, type inference is performed like for the arithmetic operators. \cw{~} is right-associative.
 
 \S{}Arithmetic Operators
 
@@ -226,6 +207,26 @@ Examples:
 \c 2+3*5     ; yields correct value 17
 \c <$4711    ; selects low byte $11
 \c 255+255   ; of type word because >256
+
+
+\S{}Byte-select and Conversion Operators
+
+The low-byte select operator \cw{<} returns the low byte of a word-sized expression, or the unmodified value of a byte-sized expression. The high-byte select operator \cw{>} returns the high byte of a word-sized expression shifted eight bits to the right. It returns zero for byte-sized expressions. The resulting data type of both operators is byte. If applied to an undefined argument, the result is undefined.
+
+The convert to byte \cw{[b]} and convert to word \cw{[w]} operators change the data type of their expression. If the expression does not fit into a byte, \cw{[b]} raises an error. The operators also change the type of the undefined value while retaining undefined as a value.
+
+
+\S{}Comparison and Logical Operators
+
+The comparison operators return 1 as true value, and 0 as false value. They return an undefined value if at least one of their arguments is undefined.
+
+The logical operators return an undefined value if at least one of their arguments is undefined. The logical or \cw{||} operator is an exception to this rule. It returns true if at least one of its arguments is true.
+
+The logical negation operator \cw{!} is right-associative.
+
+\S{}Is-defined Operator
+
+The unary, right associative is-defined operator \cw{?} returns true, if its argument is defined. Otherwise, false is returned. The result is of type byte.
 
 \S{}Defined-or-else Operator
 
