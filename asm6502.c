@@ -684,8 +684,8 @@ static value unary(char **p)
                    if (res.v) res.v = 1;         
                 }
                 break;
-      if (TYPE(res) == TYPE_BYTE) res.v &= 0xff;
       }
+      if (TYPE(res) == TYPE_BYTE) res.v &= 0xff;
    }
    return res;
 }
@@ -1666,7 +1666,8 @@ static void directive_assert(char **p, int on_pass)
       }
       else {
          puts("");
-      }      
+      }
+      error_abort();
    }
    else {
       skip_to_eol(p);
