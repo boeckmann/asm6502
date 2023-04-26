@@ -3,5 +3,12 @@
 .assert !0
 .assert !!1
 .assert ! ? .?
+.assert ??? 1
 .assert 0 == 0
 .assert 1 != 0
+
+X = 1
+Y = 0
+
+.assert X
+.assert !Y
