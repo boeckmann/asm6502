@@ -1,0 +1,37 @@
+; test logical == and logical !=
+.assert 0 == 0
+.assert !(0 == 1)
+.assert !(1 == 0)
+.assert 0 != 1
+.assert 1 != 0
+
+.assert !?(.? == .?)
+.assert !?(.? != .?)
+.assert !?(.? == 0)
+.assert !?(0 == .?)
+.assert !?(.? != 0)
+.assert !?(0 != .?)
+.assert !?(.? == 1)
+.assert !?(1 == .?)
+.assert !?(.? != 1)
+.assert !?(1 != .?)
+
+; test logical OR
+.assert ? (.? || .?) == 0
+.assert ? (.? || 0) == 0
+.assert ? (0 || .?) == 0
+.assert (.? || 1) == 1
+.assert (1 || .?) == 1
+.assert (0 || 1) == 1
+.assert (1 || 0) == 1
+.assert (1 || 1) == 1
+
+; test logical AND
+.assert ? (.? && .?) == 0
+.assert ? (.? && 0) == 0
+.assert ? (0 && .?) == 0
+.assert ? (.? && 1) == 0
+.assert ? (1 && .?) == 0
+.assert (0 && 1) == 0
+.assert (1 && 0) == 0
+.assert (1 && 1) == 1

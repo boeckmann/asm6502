@@ -1628,19 +1628,48 @@ static void directive_echo(char **p, int on_pass)
 static void directive_diagnostic(char **p, int level)
 {
    /* warnings and errors are processed at pass 1 */
+   if (pass != 1) {
+      skip_to_eol(p);
+      return;
+   }
 
-   if (level == 1) {
+   switch(level) {
+   case 1: /* warning */
+      printf("%s:%d: warning: ", current_file->filename, line);      
+      echo(p);
+      break;
+   case 2: /* error */
       printf("%s:%d: error: ", current_file->filename, line);
       echo(p);
       error_abort();
+      break;
+   }
+}
+
+static void directive_assert(char **p, int on_pass)
+{
+   value res;
+
+   if (pass != on_pass) {
+      skip_to_eol(p);
+      return;
+   }
+
+   res = expr(p);
+
+   if (UNDEFINED(res) || res.v == 0) {
+      printf("%s:%d: assertion failed: ", current_file->filename, line);            
+      skip_white(p);
+      if (**p == ',') {
+         (*p)++;
+         echo(p);
+      }
+      else {
+         puts("");
+      }      
    }
    else {
-      if (pass == 2) {
-         skip_to_eol(p);
-         return;
-      }
-      printf("%s:%d: warning: ", current_file->filename, line);      
-      echo(p);
+      skip_to_eol(p);
    }
 }
 
@@ -1679,11 +1708,17 @@ static int directive(char **p)
    else if (!strcmp(id, "ECHO1")) {
       directive_echo(p, 1);
    }
+   else if (!strcmp(id, "ASSERT")) {
+      directive_assert(p, 1);
+   }
+   else if (!strcmp(id, "ASSERT1")) {
+      directive_assert(p, 2);
+   }
    else if (!strcmp(id, "ERROR")) {
-      directive_diagnostic(p, 1);
+      directive_diagnostic(p, 2);
    }
    else if (!strcmp(id, "WARNING")) {
-      directive_diagnostic(p, 0);
+      directive_diagnostic(p, 1);
    }
    else if (!strcmp(id, "NOLIST")) {
       listing = 0;
