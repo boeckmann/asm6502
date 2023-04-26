@@ -608,9 +608,10 @@ static value primary(char **p)
       if (**p != ')') error(ERR_UNBALANCED);
       (*p)++;
    }
-   else if (**p == '?') {
-      (*p)++;
+   else if (**p == '.' && *(*p+1) == '?') {
+      (*p)+=2;
    }
+
    else if (**p == LOCAL_LABEL_LETTER && isalnum(*(*p+1))) {  /* local label*/
       (*p)++;
       nident(p, id);
@@ -658,27 +659,34 @@ static value primary(char **p)
    return res;
 }
 
-static value negation(char **p)
+static value unary(char **p)
 {
    value res;
    char op = 0;
 
    skip_white(p);
-   if (**p == '~' || **p == '!') {
+   if (**p == '~' || **p == '!' || **p == '?') {
       op = **p;
       (*p)++;
+      res = unary(p);
    }   
-   res = primary(p);
+   else res = primary(p);
 
-   if (op && DEFINED(res)) {
-      if (op == '~') res.v = ~res.v;
-      else {
-         res.v = !res.v;
-         if (res.v) res.v = 1;
-      }
+   if (op) {
+      switch(op) {
+      case '?': res.v = DEFINED(res) ? 1 : 0;
+                SET_DEFINED(res);
+                SET_TYPE(res, TYPE_BYTE);
+                break;
+      case '~': if (DEFINED(res)) res.v = ~res.v; break;
+      case '!': if (DEFINED(res)) {
+                   res.v = !res.v;
+                   if (res.v) res.v = 1;         
+                }
+                break;
       if (TYPE(res) == TYPE_BYTE) res.v &= 0xff;
+      }
    }
-
    return res;
 }
 
@@ -687,7 +695,7 @@ static value product(char **p)
    value  n2, res;
    char op;
 
-   res = negation(p);
+   res = unary(p);
 
    skip_white(p);
    op = **p;
@@ -699,7 +707,7 @@ static value product(char **p)
       (*p)++;
       if (**p == '<' || **p == '>') (*p)++;
 
-      n2 = negation(p);
+      n2 = unary(p);
 
       if (DEFINED(res) && DEFINED(n2)) {
          switch (op) {
