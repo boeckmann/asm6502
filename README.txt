@@ -309,14 +309,7 @@ Copyright 2022-2023 by Bernd Boeckmann
 
         -  Defined-or-else ?:
 
- 4.4.3 Bit-wise Operators
-
-       The bit-wise complement operator ~ respects the data type when
-       toggling bits. This means that ~1 becomes $FE, and not $FFFE. For
-       the other operators, type inference is performed like for the
-       arithmetic operators. ~ is right-associative.
-
- 4.4.4 Arithmetic Operators
+ 4.4.3 Arithmetic and bit-wise Operators
 
        The usual semantics for the arithmetic operators apply.
 
@@ -326,13 +319,16 @@ Copyright 2022-2023 by Bernd Boeckmann
        result is of type word. The result is also of type word if it would
        otherwise overflow the range of type byte.
 
+       The bit-wise complement operator ~ respects the data type when
+       toggling bits. This means that ~1 becomes $FE, and not $FFFE.
+
        Examples:
 
-         2+3*5     ; yields correct value 17
-         <$4711    ; selects low byte $11
-         255+255   ; of type word because >256
+         2+3*5        ; value 17
+         $4700 | $11  ; is $4711
+         255+255      ; of type word because >256
 
- 4.4.5 Byte-select and Conversion Operators
+ 4.4.4 Byte-select and Conversion Operators
 
        The low-byte select operator < returns the low byte of a word-sized
        expression, or the unmodified value of a byte-sized expression. The
@@ -346,7 +342,7 @@ Copyright 2022-2023 by Bernd Boeckmann
        byte, [b] raises an error. The operators also change the type of the
        undefined value while retaining undefined as a value.
 
- 4.4.6 Comparison and Logical Operators
+ 4.4.5 Comparison and Logical Operators
 
        The comparison operators return 1 as true value, and 0 as false
        value. They return an undefined value if at least one of their
@@ -359,13 +355,13 @@ Copyright 2022-2023 by Bernd Boeckmann
 
        The logical negation operator ! is right-associative.
 
- 4.4.7 Is-defined Operator
+ 4.4.6 Is-defined Operator
 
        The unary, right associative is-defined operator ? returns true, if
        its argument is defined. Otherwise, false is returned. The result is
        of type byte.
 
- 4.4.8 Defined-or-else Operator
+ 4.4.7 Defined-or-else Operator
 
        The defined-or-else operator ?: returns its first argument if it is
        defined, otherwise its second. It is left-associative.
@@ -410,7 +406,7 @@ Copyright 2022-2023 by Bernd Boeckmann
 
          .ASSERT 2 > 1, "arithmetic implementation is flawed"
 
- 4.6.2 .BINARY directive
+ 4.6.2 .BINARY Directive
 
        Copies binary data from a file to the output file. Numeric
        expressions specifying a start offset and a length may be given
@@ -423,7 +419,7 @@ Copyright 2022-2023 by Bernd Boeckmann
          .BINARY "SPRITE.DAT", $10     ; skip the first 16 bytes
          .BINARY "SPRITE.DAT", $10, 64 ; copy 64 bytes from offset 16
 
- 4.6.3 .BYTE directive
+ 4.6.3 .BYTE Directive
 
        Produces one or more output bytes. The arguments are separated by a
        comma. Numeric expressions or strings may be used as arguments. The
@@ -436,7 +432,7 @@ Copyright 2022-2023 by Bernd Boeckmann
          .BYTE 47, 11
          .BYTE "Hello, World", 13, 10
 
- 4.6.4 .ECHO and .ECHO1 directives
+ 4.6.4 .ECHO and .ECHO1 Directives
 
        Print the arguments to standard output. .ECHO does it on the
        second assembler pass, while .ECHO1 does it on the first pass. The
@@ -455,7 +451,7 @@ Copyright 2022-2023 by Bernd Boeckmann
        information. Accepts the same parameters as .ECHO for the error
        message.
 
- 4.6.6 .FILL directive
+ 4.6.6 .FILL Directive
 
        Starting from the current position of the output file, emits as many
        bytes as given by the first argument. If the second argument is
@@ -467,7 +463,7 @@ Copyright 2022-2023 by Bernd Boeckmann
          .FILL 100       ; fill 100 bytes with zero
          .FILL 16, $EA   ; insert 16 NOPs ($EA) into the code
 
- 4.6.7 .IF, .IFN, .ELSE and .ENDIF directives
+ 4.6.7 .IF, .IFN, .ELSE and .ENDIF Directives
 
        Conditionally assembles code if the condition of the argument to .IF
        or .IFN is met. For .IF, the condition is met if the argument yields
@@ -495,14 +491,14 @@ Copyright 2022-2023 by Bernd Boeckmann
        In listing files, the unprocessed lines are indicated by a minus
        after the line number instead of a colon.
 
- 4.6.8 .IFDEF and .IFNDEF
+ 4.6.8 .IFDEF and .IFNDEF Directives
 
        An argument to .IFDEF is considered true, if its value is defined.
        An argument to .IFNDEF is considered true, if its value is
        undefined. Otherwise, the directives behave like their .IF and .IFN
        counterparts.
 
- 4.6.9 .INCLUDE directive
+ 4.6.9 .INCLUDE Directive
 
        Substitutes the directive with the contents of a file given by the
        argument for processing by the assembler.
@@ -511,7 +507,7 @@ Copyright 2022-2023 by Bernd Boeckmann
 
          .INCLUDE "c64prg.i65"
 
-4.6.10 .LIST and .NOLIST
+4.6.10 .LIST and .NOLIST Directives
 
        If a listing file is given via command line, listing generation is
        initially enabled. If the user wants some parts of the code to be
@@ -524,7 +520,7 @@ Copyright 2022-2023 by Bernd Boeckmann
        A .NOLIST inside an include file does not propagate to the parent
        file.
 
-4.6.11 .ORG directive
+4.6.11 .ORG Directive
 
        Sets the address counter for the currently processed instruction
        to the numeric value of the argument. Does not modify the offset
@@ -535,12 +531,12 @@ Copyright 2022-2023 by Bernd Boeckmann
 
          .ORG $0801
 
-4.6.12 .WARNING directive
+4.6.12 .WARNING Directive
 
        Prints a warning along with file name and line number information.
        Accepts the same parameters as .ECHO for the warning message.
 
-4.6.13 .WORD directive
+4.6.13 .WORD Directive
 
        Produces one or more output words.
 
@@ -556,7 +552,7 @@ Copyright 2022-2023 by Bernd Boeckmann
        case-insensitive. The assembler supports all MOS6502 addressing
        modes:
 
- 4.7.1 Implicit and accumulator addressing
+ 4.7.1 Implicit and Accumulator Addressing
 
        Either no argument or accumulator is implicitly assumed by the
        instruction
@@ -573,7 +569,7 @@ Copyright 2022-2023 by Bernd Boeckmann
 
          LDA #42 ; load value 42 into the accumulator
 
- 4.7.3 Relative addressing
+ 4.7.3 Relative Addressing
 
        Relative addressing is only used by branch instructions. The branch
        offset in the range of -128 to 127 is encoded by the byte following
@@ -590,7 +586,7 @@ Copyright 2022-2023 by Bernd Boeckmann
 
          LDA $4711 ; load contents of address $4711 into the accumulator
 
- 4.7.5 Zero-page addressing
+ 4.7.5 Zero-page Addressing
 
        A byte-sized address is encoded following the opcode byte. The
        assembler interprets any byte-sized expression following an
@@ -599,7 +595,7 @@ Copyright 2022-2023 by Bernd Boeckmann
          LDA $47   ; load contents of address $47 into the accumulator
          LDA >$4711  ; load contents of address $47 into the accumulator
 
- 4.7.6 Absolute X and absolute X addressing
+ 4.7.6 Absolute X and Absolute X Addressing
 
        The address is encoded in the word following the opcode and
        displaced by the contents for the X or Y register.
@@ -607,7 +603,7 @@ Copyright 2022-2023 by Bernd Boeckmann
          LDA $4711,X ; load contents of address $4711 displaced by X
          LDA $4711,Y ; load contents of address $4711 displaced by Y
 
- 4.7.7 Zero-page X and Zero-page Y addressing
+ 4.7.7 Zero-page X and Zero-page Y Addressing
 
        The address is encoded in the byte following the opcode displaced by
        the contents for the X or Y register.
@@ -615,7 +611,7 @@ Copyright 2022-2023 by Bernd Boeckmann
          LDA $47,X ; A = contents of address $47 displaced by X
          LDX $11,Y ; X = load contents of address $47 displaced by Y
 
- 4.7.8 Indirect addressing
+ 4.7.8 Indirect Addressing
 
        The word-sized address is stored in the memory location given by
        the word-sized argument. In assembler syntax, an indirect address
@@ -638,7 +634,7 @@ Copyright 2022-2023 by Bernd Boeckmann
 
          JMP ((2+3)*1000)
 
- 4.7.9 Indexed indirect by X and indirect indexed by Y addressing
+ 4.7.9 Indexed Indirect by X and Indirect Indexed by Y Addressing
 
        Indirect indirect by X addresses the byte referenced by the contents
        of the word stored at zero page address b + X. Indirect indexed
@@ -1083,4 +1079,4 @@ B Instruction Reference
 
          98         tya
 
-[Mi 26 Apr 12:24:17 2023]
+[Mi 26 Apr 12:42:55 2023]

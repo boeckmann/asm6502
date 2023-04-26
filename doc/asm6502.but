@@ -8,6 +8,7 @@
 
 \versionid \date
 
+
 \C{}Where to get
 
 Latest source and binaries may be found at:
@@ -17,6 +18,7 @@ Latest source and binaries may be found at:
 \b https://codeberg.org/boeckmann/asm6502
 
 Binaries are provided for Windows, DOS, and OS/2. A Unix make file is provided which should be easily adaptable to any C89 conformant C compiler.
+
 
 \C{intro}Introduction
 
@@ -61,6 +63,7 @@ The following listing contains a small sample program. It is the classic hello w
 \c 29: CR = 13
 \c 30: LF = %1010
 
+
 \C{concepts}Concepts and Terminology
 
 The task of an assembler is to translate an \e{assembler source} containing human readable \e{instructions} to a \e{binary representation} the processor understands. This binary representation is called \e{machine code}. There is a one-to-one mapping between the human readable instructions contained in the assembler source and the generated machine code.
@@ -93,13 +96,16 @@ Beside labels the programmer may also define \e{variables}. Variables may be ass
 
 Character sequences which by itself provide a value to the assembler, like the character sequence \c{42} that represents the numeric value 42, are considered to be \e{literals}.
 
+
 \C{syntax}Syntax and Semantics
 
 The following chapter describes the data model and the syntax accepted by the assembler.
 
+
 \H{input-files}Input Files
 
 Input files should have \cw{.a65} as extension to distinguish it from files written for other assemblers. The files should be encoded in the ASCII or UTF-8 character sets.
+
 
 \H{data-types}Data Types
 
@@ -110,6 +116,7 @@ Two data types are known to the assembler:
 \b \e{word}: 16-bit in size, storing positive whole numbers between 0 to 65535. Negative numbers may also be stored in the range from -32768 to -1. Negative numbers are stored in two-complement representation.
 
 There is no distinct boolean type. In a boolean context, any value other than zero is considered to be a boolean true.
+
 
 \H{symbols}Symbols
 
@@ -133,11 +140,13 @@ Variables and labels may be defined locally by prepending their name with \cw{@}
 \c hello:
 \c   @l    jmp @l        ; local label reference
 
+
 \H{expressions}Expressions
 
 There are many places where expressions may occur, for example on the right side of a variable definition or as an argument to a machine instruction.
 
 Every expression is either of type byte, word or of unknown type. Every expression also has a defined numeric value or an undefined value.
+
 
 \S{primitives}Primitive Expressions
 
@@ -168,6 +177,7 @@ Label and variable names evaluate to their respective value.
 \c LOAD_ADDR = 2048
 \c lda LOAD_ADDR     ; load memory cell 2048 into accumulator
 
+
 \S{operators}Operator Precedence
 
 Expressions may be composed of arithmetic sub-expressions. Operator precedence is respected.
@@ -192,21 +202,20 @@ The supported operations from highest to lowest precedence are:
 
 \b Defined-or-else \cw{?:}
 
-\S{}Bit-wise Operators
 
-The bit-wise complement operator \cw{~} respects the data type when toggling bits. This means that \cw{~1} becomes \cw{$FE}, and not \cw{$FFFE}. For the other operators, type inference is performed like for the arithmetic operators. \cw{~} is right-associative.
-
-\S{}Arithmetic Operators
+\S{}Arithmetic and bit-wise Operators
 
 The usual semantics for the arithmetic operators apply.
 
 If there is an undefined argument to one of the arithmetic operators, the result value is undefined. Type inference is performed as such that if any of the arguments is of type word, the result is of type word. The result is also of type word if it would otherwise overflow the range of type byte.
 
+The bit-wise complement operator \cw{~} respects the data type when toggling bits. This means that \cw{~1} becomes \cw{$FE}, and not \cw{$FFFE}.
+
 Examples:
 
-\c 2+3*5     ; yields correct value 17
-\c <$4711    ; selects low byte $11
-\c 255+255   ; of type word because >256
+\c 2+3*5        ; value 17
+\c $4700 | $11  ; is $4711
+\c 255+255      ; of type word because >256
 
 
 \S{}Byte-select and Conversion Operators
@@ -224,9 +233,11 @@ The logical operators return an undefined value if at least one of their argumen
 
 The logical negation operator \cw{!} is right-associative.
 
+
 \S{}Is-defined Operator
 
 The unary, right associative is-defined operator \cw{?} returns true, if its argument is defined. Otherwise, false is returned. The result is of type byte.
+
 
 \S{}Defined-or-else Operator
 
@@ -238,6 +249,7 @@ Example:
 \c Z = X ?: Y ?: $DEAD  ; assign $DEAD to Z
 \c                      ; because X and Y are undefined
 
+
 \H{line-format}Line Format
 
 A line may either contain a statement or a conditional statement or none of them. A statement it either a variable definition, an instruction or a directive. Instructions and directives may be preceded by a label definition. Also, a label definition may stand for its own. Conditional statements are \cw{.IF}, \cw{.ELSE}, and \cw{.ENDIF}. These may not be preceded by a label. Each line may end with a comment. Comments are started by semicolon and ignored by the assembler.
@@ -248,9 +260,11 @@ A line may either contain a statement or a conditional statement or none of them
 \c X = 42              ; variable definition
 \c .if X == 42         ; conditional statement
 
+
 \H{directives}Directives
 
 Directives instruct the assembler to do certain things. They may or may not produce output data. Names of directives start with a dot. The directives currently known to the assembler are:
+
 
 \S{}.ASSERT and .ASSERT1
 
@@ -260,7 +274,8 @@ Example:
 
 \c .ASSERT 2 > 1, "arithmetic implementation is flawed"
 
-\S{}.BINARY directive
+
+\S{}.BINARY Directive
 
 Copies binary data from a file to the output file. Numeric expressions specifying a start offset and a length may be given as arguments. If a length is given, the start offset must also be specified.
 
@@ -270,7 +285,8 @@ Example:
  \c .BINARY "SPRITE.DAT", $10     ; skip the first 16 bytes
  \c .BINARY "SPRITE.DAT", $10, 64 ; copy 64 bytes from offset 16
 
-\S{}.BYTE directive
+
+\S{}.BYTE Directive
 
 Produces one or more output bytes. The arguments are separated by a comma. Numeric expressions or strings may be used as arguments. The values of numeric expressions must fit into a byte. Strings must be enclosed by \cw{"}.
 
@@ -280,7 +296,8 @@ Example:
 \c .BYTE 47, 11
 \c .BYTE "Hello, World", 13, 10
 
-\S{}.ECHO and .ECHO1 directives
+
+\S{}.ECHO and .ECHO1 Directives
 
 Print the arguments to standard output. \cw{.ECHO} does it on the second assembler pass, while \cw{.ECHO1} does it on the first pass. The arguments may either be strings or numeric expressions, separated by comma. Numeric expressions may be prefixed by the format specifier \cw{[$]} to output the number in hexadecimal format. Otherwise it is printed in decimal.
 
@@ -288,11 +305,13 @@ Example:
 
 \c .ECHO "hexadecimal representation of ", 4711, " is ", [$]4711
 
+
 \S{}.ERROR directive
 
 Aborts the assembly along with file name and line number information. Accepts the same parameters as \cw{.ECHO} for the error message.
 
-\S{}.FILL directive
+
+\S{}.FILL Directive
 
 Starting from the current position of the output file, emits as many bytes as given by the first argument. If the second argument is given, the region is filled with its byte-sized value. Otherwise, it is filled with zero. The address counter \cw{@} is increased accordingly.
 
@@ -301,7 +320,8 @@ Example:
 \c .FILL 100       ; fill 100 bytes with zero
 \c .FILL 16, $EA   ; insert 16 NOPs ($EA) into the code
 
-\S{}.IF, .IFN, .ELSE and .ENDIF directives
+
+\S{}.IF, .IFN, .ELSE and .ENDIF Directives
 
 Conditionally assembles code if the condition of the argument to \cw{.IF} or \cw{.IFN} is met. For \cw{.IF}, the condition is met if the argument yields a defined value other than zero. For \cw{.IFN}, the condition is met if the argument does not yield a defined value or the value is zero.
 
@@ -322,11 +342,13 @@ Example:
 
 In listing files, the unprocessed lines are indicated by a minus after the line number instead of a colon.
 
-\S{}.IFDEF and .IFNDEF
+
+\S{}.IFDEF and .IFNDEF Directives
 
 An argument to \cw{.IFDEF} is considered true, if its value is defined. An argument to \cw{.IFNDEF} is considered true, if its value is undefined. Otherwise, the directives behave like their \cw{.IF} and \cw{.IFN} counterparts.
 
-\S{}.INCLUDE directive
+
+\S{}.INCLUDE Directive
 
 Substitutes the directive with the contents of a file given by the argument for processing by the assembler.
 
@@ -334,7 +356,8 @@ Example:
 
 \c .INCLUDE "c64prg.i65"
 
-\S{}.LIST and .NOLIST
+
+\S{}.LIST and .NOLIST Directives
 
 If a listing file is given via command line, listing generation is initially enabled. If the user wants some parts of the code to be excluded from the listing, the region can be surrounded by \cw{.NOLIST} and \cw{.LIST} statements.
 
@@ -342,7 +365,8 @@ If listing generation is disabled when an \cw{.INCLUDE} statement is processed, 
 
 A \cw{.NOLIST} inside an include file does not propagate to the parent file.
 
-\S{}.ORG directive
+
+\S{}.ORG Directive
 
 Sets the address counter for the currently processed instruction to the numeric value of the argument. Does not modify the offset into the output file. This means that .ORG can not be used to \q{jump around} in the output file.
 
@@ -350,11 +374,12 @@ Example:
 
 \c .ORG $0801
 
-\S{}.WARNING directive
+\S{}.WARNING Directive
 
 Prints a warning along with file name and line number information. Accepts the same parameters as \cw{.ECHO} for the warning message.
 
-\S{}.WORD directive
+
+\S{}.WORD Directive
 
 Produces one or more output words.
 
@@ -362,11 +387,12 @@ Example:
 
 \c .WORD $0801, 4711
 
+
 \H{addressing-modes}Addressing Modes
 
 Every assembler instruction consists of a mnemonic identifying the machine instruction followed by at most one numeric argument including addressing mode specifiers. Instruction mnemonics are case-insensitive. The assembler supports all MOS6502 addressing modes:
 
-\S{}Implicit and accumulator addressing
+\S{}Implicit and Accumulator Addressing
 
 Either no argument or accumulator is implicitly assumed by the instruction
 
@@ -379,7 +405,7 @@ The byte-sized argument is encoded in the byte following the opcode. The argumen
 
 \c LDA #42 ; load value 42 into the accumulator
 
-\S{}Relative addressing
+\S{}Relative Addressing
 
 Relative addressing is only used by branch instructions. The branch offset in the range of -128 to 127 is encoded by the byte following the opcode. The assembler interprets the argument, which may be any numeric expression, relative to the current address counter.
 
@@ -391,28 +417,28 @@ A word-sized address is encoded following the opcode byte. The assembler interpr
 
 \c LDA $4711 ; load contents of address $4711 into the accumulator
 
-\S{}Zero-page addressing
+\S{}Zero-page Addressing
 
 A byte-sized address is encoded following the opcode byte. The assembler interprets any byte-sized expression following an instruction mnemonic as a zero page address.
 
 \c LDA $47   ; load contents of address $47 into the accumulator
 \c LDA >$4711  ; load contents of address $47 into the accumulator
 
-\S{}Absolute X and absolute X addressing
+\S{}Absolute X and Absolute X Addressing
 
 The address is encoded in the word following the opcode and displaced by the contents for the X or Y register.
 
 \c LDA $4711,X ; load contents of address $4711 displaced by X
 \c LDA $4711,Y ; load contents of address $4711 displaced by Y
 
-\S{}Zero-page X and Zero-page Y addressing
+\S{}Zero-page X and Zero-page Y Addressing
 
 The address is encoded in the byte following the opcode displaced by the contents for the X or Y register.
 
 \c LDA $47,X ; A = contents of address $47 displaced by X
 \c LDX $11,Y ; X = load contents of address $47 displaced by Y
 
-\S{}Indirect addressing
+\S{}Indirect Addressing
 
 The word-sized address is stored in the memory location given by the word-sized argument. In assembler syntax, an indirect address is indicated by enclosing the argument in parentheses, like in the following.
 
@@ -430,7 +456,7 @@ This one is correct (indirect addressing):
 
 \c JMP ((2+3)*1000)
 
-\S{}Indexed indirect by X and indirect indexed by Y addressing
+\S{}Indexed Indirect by X and Indirect Indexed by Y Addressing
 
 Indirect indirect by X addresses the byte referenced by the contents of the word stored at zero page address b + X. Indirect indexed by Y adds Y to the address word stored in zero page address b to calculate the address to operate on.
 
