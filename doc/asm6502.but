@@ -158,9 +158,9 @@ A character enclosed by \cw{'} is evaluated to its ASCII value.
 
 \c 'x'   ; byte typed ASCII character code of x
 
-The address counter symbol \cw{@} returns the address of the currently assembled instruction. The symbol \cw{?} returns an undefined value of unknown type.
+The address counter symbol \cw{@} returns the address of the currently assembled instruction. The symbol \cw{.?} returns an undefined value of unknown type.
 
-\c ?     ; undefined value
+\c .?    ; undefined value
 \c @     ; current address
 
 Label and variable names evaluate to their respective value.
@@ -176,19 +176,19 @@ The supported operations from highest to lowest precedence are:
 
 \b expressions enclosed by parentheses \cw{()}
 
-\b unary bit-wise complement \cw{~}, and logical not \cw{!}
+\b unary bit-wise complement \cw{~}, logical not \cw{!}, and is-defined \cw{?}
 
-\b multiplication \cw{*}, division \cw{/}, bit-wise and \cw{&}, logical left \cw{<<} and right \cw{>>} shift.
+\b multiplication \cw{*}, division \cw{/}, bit-wise and \cw{&}, logical left \cw{<<} and right \cw{>>} shift
 
 \b unary plus and binary addition \cw{+}, unary minus and subtraction \cw{-}, bit-wise or \cw{|}, exclusive or \cw{^}
+
+\b unary low \cw{<} and high \cw{>} byte select, lossless unary conversion operators \cw{[b]} and \cw{[w]}
 
 \b comparison operators: \cw{==}, \cw{!=}, \cw{<}, \cw{>}, \cw{<=}, \cw{>=}
 
 \b logical and \cw{&&}
 
 \b logical or \cw{||}
-
-\b unary low \cw{<} and high \cw{>} byte select, lossless unary conversion operators \cw{[b]} and \cw{[w]}
 
 \b defined-or-else \cw{?:}
 
@@ -233,7 +233,7 @@ The defined-or-else operator \cw{?:} returns its first argument if it is defined
 
 Example:
 
-\c Y = ?
+\c Y = .?
 \c Z = X ?: Y ?: $DEAD  ; assign $DEAD to Z
 \c                      ; because X and Y are undefined
 
@@ -250,6 +250,14 @@ A line may either contain a statement or a conditional statement or none of them
 \H{directives}Directives
 
 Directives instruct the assembler to do certain things. They may or may not produce output data. Names of directives start with a dot. The directives currently known to the assembler are:
+
+\S{}.ASSERT and .ASSERT1
+
+Tests if the expression given as argument returns a true value, otherwise terminated with an error. \cw{.ASSERT} runs on pass two, and \cw{ASSERT1} runs on pass one. The arguments following the first one are handled like the \cw{.ECHO} directive does it.
+
+Example:
+
+\c .ASSERT 2 > 1, "arithmetic implementation is flawed"
 
 \S{}.BINARY directive
 

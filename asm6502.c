@@ -787,12 +787,47 @@ static value term(char **p)
    return res;
 }
 
+static value conversion(char **p)
+{
+   value v;
+
+   skip_white(p);
+   if (**p == '>') {
+      (*p)++;
+      v = term(p);
+      SET_TYPE(v, TYPE_BYTE);
+      v.v = v.v >> 8;
+   }
+   else if (**p == '<') {
+      (*p)++;
+      v = term(p);
+      SET_TYPE(v, TYPE_BYTE);
+      v.v = v.v & 0xff;
+   }
+   else if (starts_with(*p, "[b]")) {
+      /* lossless byte conversion */
+      *p += 3;
+      v = term(p);
+      if (DEFINED(v) && v.v > 0xff)
+         error(ERR_BYTERNG);
+      SET_TYPE(v, TYPE_BYTE);
+   }
+   else if (starts_with(*p, "[w]")) {
+      /* lossless word conversion */
+      *p += 3;
+      v = term(p);
+      SET_TYPE(v, TYPE_WORD);
+   }
+   else v = term(p);
+   return v;
+}
+
 static value comparison(char **p)
 {
    value res, n2;
    char op, op2;
 
-   res = term(p); 
+   res = conversion(p); 
     
    skip_white(p);
    while ((**p == '=' && *(*p+1) == '=') ||
@@ -805,7 +840,7 @@ static value comparison(char **p)
       *p += 1;
       if (**p == '=') *p += 1;
 
-      n2 = term(p);
+      n2 = conversion(p);
 
       if (DEFINED(res) && DEFINED(n2)) {
          switch (op) {
@@ -882,51 +917,16 @@ static value logical_or(char **p)
    return res;
 }
 
-static value conversion(char **p)
-{
-   value v;
-
-   skip_white(p);
-   if (**p == '>') {
-      (*p)++;
-      v = conversion(p);
-      SET_TYPE(v, TYPE_BYTE);
-      v.v = v.v >> 8;
-   }
-   else if (**p == '<') {
-      (*p)++;
-      v = conversion(p);
-      SET_TYPE(v, TYPE_BYTE);
-      v.v = v.v & 0xff;
-   }
-   else if (starts_with(*p, "[b]")) {
-      /* lossless byte conversion */
-      *p += 3;
-      v = conversion(p);
-      if (DEFINED(v) && v.v > 0xff)
-         error(ERR_BYTERNG);
-      SET_TYPE(v, TYPE_BYTE);
-   }
-   else if (starts_with(*p, "[w]")) {
-      /* lossless word conversion */
-      *p += 3;
-      v = conversion(p);
-      SET_TYPE(v, TYPE_WORD);
-   }
-   else v = logical_or(p);
-   return v;
-}
-
 static value defined_or_else(char **p)
 {
    value res, n2;
 
-   res = conversion(p); 
+   res = logical_or(p); 
 
    skip_white(p);
    while ((**p == '?' && *(*p+1) == ':')) {
       *p += 2;
-      n2 = conversion(p);
+      n2 = logical_or(p);
 
       if (!DEFINED(res)) res = n2;
    }

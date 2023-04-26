@@ -1,0 +1,19 @@
+; test arithmetic operators
+
+.assert 1+1 == 2
+.assert 2+3*5 == 17
+.assert 2*3+4*5 == 26
+.assert 7 / 2 == 3
+
+.assert 1 << 2 == 4
+.assert $FF >> 4 == $F
+.assert $FF >> 3 > $FF >> 4
+
+; test byte-select operators
+.assert <$4711 == $11
+.assert >$4711 == $47
+
+; test complement
+.assert ~$1 == $FE
+.assert ~$001 == $FFFE
+.assert ~([w]$1) == $FFFE

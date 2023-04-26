@@ -1,0 +1,7 @@
+; as first test, test .assert and a few important operators
+.assert 1
+.assert !0
+.assert !!1
+.assert ! ? .?
+.assert 0 == 0
+.assert 1 != 0
