@@ -256,7 +256,9 @@ static char* err_msg[] = {
 #define ERR_PHASE       30
    "symbol value mismatch between pass one and two",
 #define ERR_PHASE_SIZE  31
-   "pass two code size greater than pass one code size"
+   "pass two code size greater than pass one code size",
+#define ERR_DIV_BY_ZERO 32
+   "division by zero"
 };
 
 #define ERROR_NORM  1
@@ -714,6 +716,8 @@ static value product(char **p)
             case '*':
                res.v = (u16)(res.v * n2.v); break;
             case '/':
+               if (n2.v == 0)
+                  error(ERR_DIV_BY_ZERO);
                res.v = (u16)(res.v / n2.v); break;
             case AND_LETTER:
                res.v = (u16)(res.v & n2.v); break;
@@ -2172,7 +2176,7 @@ static int init_listing(char *fn)
       "DATE: %s\n\n"
       "MAIN INPUT FILE: %s\n\n",
       ts, current_file->filename);
-   fprintf(list_file, " Line# FPos PC    Code           Source\n");
+   fprintf(list_file, " Line# Pos  Addr  Code           Source\n");
 
    return 1;
 }
