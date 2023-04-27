@@ -24,10 +24,10 @@ Copyright 2022-2023 by Bernd Boeckmann
        consists of under 3K lines of C code and can be built with compilers
        conformant to the C89 standard.
 
-       ASM6502 implements some advanced features, like local labels, the
-       ability to produce listing files, and the optimization of opcodes.
-       It is able to produce byte-exact replicas of the Commodore C64
-       Kernal and BASIC ROMs. The one big feature missing is macro support.
+       ASM6502 implements some advanced features, like local labels,
+       conditional assembly, optimization of opcodes, and the ability to
+       produce listing files. It is powerful enough to produce byte-exact
+       replicas of the Commodore C64 KERNAL and BASIC ROMs.
 
        The assembler outputs plain binary files.
 
@@ -73,10 +73,10 @@ Copyright 2022-2023 by Bernd Boeckmann
 --------------------------
 
        The task of an assembler is to translate an _assembler
-       source_ containing human readable _instructions_ to a _binary
+       source_ containing human-readable _instructions_ to a _binary
        representation_ the processor understands. This binary
        representation is called _machine code_. There is a one-to-one
-       mapping between the human readable instructions contained in the
+       mapping between the human-readable instructions contained in the
        assembler source and the generated machine code.
 
        Each instruction a processor understands is given a name, called
@@ -84,8 +84,8 @@ Copyright 2022-2023 by Bernd Boeckmann
        programmer what the instruction does. Every instruction is also
        assigned a numeric value, called the operation code or _opcode_.
        This is what gets written by the assembler as machine code to an
-       output file. The opcode is interpreted by the the processor to
-       decide what to do.
+       output file. The opcode is interpreted by the processor to decide
+       what to do.
 
        Beside the instruction itself, additional information may be
        required to process it. The additional information is provided in
@@ -187,12 +187,11 @@ Copyright 2022-2023 by Bernd Boeckmann
 
        Two data types are known to the assembler:
 
-        -  _byte_: 8-bit in size, storing whole numbers between 0 to 255
-           inclusive.
+        -  _byte_: 8-bit, storing whole numbers between 0 and 255.
 
-        -  _word_: 16-bit in size, storing positive whole numbers between
-           0 to 65535. Negative numbers may also be stored in the range
-           from -32768 to -1. Negative numbers are stored in two-complement
+        -  _word_: 16-bit, storing positive whole numbers between 0 and
+           65535. Negative numbers may also be stored in the range from -
+           32768 to -1. Negative numbers are stored in two-complement
            representation.
 
        There is no distinct boolean type. In a boolean context, any value
@@ -201,7 +200,7 @@ Copyright 2022-2023 by Bernd Boeckmann
    4.3 Symbols
 
        The assembler distinguishes two types of case-sensitive symbols:
-       _labels_ and _variables_. A label stores the address of of the
+       _labels_ and _variables_. A label stores the address of the
        instruction or data it is currently assembling. It is defined at the
        beginning of a line by appending its name with a colon. The colon
        may be left out if the label name is not an instruction mnemonic.
@@ -345,13 +344,11 @@ Copyright 2022-2023 by Bernd Boeckmann
  4.4.5 Comparison and Logical Operators
 
        The comparison operators return 1 as true value, and 0 as false
-       value. They return an undefined value if at least one of their
-       arguments is undefined.
+       value.
 
-       The logical operators return an undefined value if at least one
-       of their arguments is undefined. The logical or || operator is an
-       exception to this rule. It returns true if at least one of its
-       arguments is true.
+       They return an undefined value if at least one of their arguments
+       is undefined, with the logical or || operator being an exception to
+       this rule. It returns true if at least one of its arguments is true.
 
        The logical negation operator ! is right-associative.
 
@@ -438,7 +435,7 @@ Copyright 2022-2023 by Bernd Boeckmann
        second assembler pass, while .ECHO1 does it on the first pass. The
        arguments may either be strings or numeric expressions, separated by
        comma. Numeric expressions may be prefixed by the format specifier
-       [$] to output the number in hexadecimal format. Otherwise it is
+       [$] to output the number in hexadecimal format. Otherwise, it is
        printed in decimal.
 
        Example:
@@ -590,7 +587,7 @@ Copyright 2022-2023 by Bernd Boeckmann
 
        A byte-sized address is encoded following the opcode byte. The
        assembler interprets any byte-sized expression following an
-       instruction mnemonic as a zero page address.
+       instruction mnemonic as a zero-page address.
 
          LDA $47   ; load contents of address $47 into the accumulator
          LDA >$4711  ; load contents of address $47 into the accumulator
@@ -636,9 +633,9 @@ Copyright 2022-2023 by Bernd Boeckmann
 
  4.7.9 Indexed Indirect by X and Indirect Indexed by Y Addressing
 
-       Indirect indirect by X addresses the byte referenced by the contents
-       of the word stored at zero page address b + X. Indirect indexed
-       by Y adds Y to the address word stored in zero page address b to
+       Indexed indirect by X addresses the byte referenced by the contents
+       of the word stored at zero-page address b + X. Indirect indexed
+       by Y adds Y to the address word stored in zero-page address b to
        calculate the address to operate on.
 
          b = 15
@@ -650,7 +647,7 @@ A Command Line Syntax
 
          Usage: asm6502 [-q] input -o output [-l listing] [VAR=number]...
          
-           -q             be quiet, unless an error occured
+           -q             be quiet, unless an error occurred
            -o output      set output file name
            -l listing     set optional listing file name
 
@@ -1079,4 +1076,4 @@ B Instruction Reference
 
          98         tya
 
-[Mi 26 Apr 12:42:55 2023]
+[Do 27 Apr 18:41:52 2023]
