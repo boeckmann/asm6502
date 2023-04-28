@@ -1,0 +1,5 @@
+; following should generate warnings
+
+lda [w]0,x                      ; warning level >= 2
+lda [w]0,y                      ; warning level >= 2
+.warning "This is a warning"    ; warning level >= 1

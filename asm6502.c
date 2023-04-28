@@ -67,6 +67,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "asm6502.h"
 
 static int flag_quiet = 0;
+static int flag_warnings = 2;
 
 static u8 *code = NULL;  /* holds the emitted code */
 static u16 code_size;
@@ -1142,6 +1143,12 @@ static int instruction_ind( char **p, instruction_desc *instr ) {
 }
 
 
+static void print_warning( const char *s ) {
+   if ( flag_warnings > 1 && pass == 2 )
+      printf( "%s:%d: warning: %s\n", current_file->filename, line, s );
+}
+
+
 /* handle absolute x and y, zero-page x and y addressing modes */
 static int instruction_abxy_zpxy( char **p, instruction_desc *instr, value v ) {
    char id[ID_LEN];
@@ -1151,14 +1158,20 @@ static int instruction_abxy_zpxy( char **p, instruction_desc *instr, value v ) {
    /* test for absolute and zero-page X addressing */
    if ( !strcmp( id, "X" )) {
       if ((TYPE( v ) == TYPE_BYTE ) && AM_VALID( *instr, AM_ZPX )) am = AM_ZPX;
-      else if ( AM_VALID( *instr, AM_ABX )) am = AM_ABX;
-      else error( ERR_AM );
+      else if ( AM_VALID( *instr, AM_ABX )) {
+         am = AM_ABX;
+         if ( NUM_TYPE( v.v ) == TYPE_BYTE )
+            print_warning( "non-optimal code; address could be of type byte" );
+      } else error( ERR_AM );
    }
       /* test for absolute and zero-page Y addressing */
    else if ( !strcmp( id, "Y" )) {
       if ((TYPE( v ) == TYPE_BYTE ) && AM_VALID( *instr, AM_ZPY )) am = AM_ZPY;
-      else if ( AM_VALID( *instr, AM_ABY )) am = AM_ABY;
-      else error( ERR_AM );
+      else if ( AM_VALID( *instr, AM_ABY )) {
+         am = AM_ABY;
+         if ( NUM_TYPE( v.v ) == TYPE_BYTE )
+            print_warning( "non-optimal code; address could be of type byte" );
+      } else error( ERR_AM );
    } else error( ERR_AM );
 
    if ( pass == 2 ) {
@@ -1617,19 +1630,25 @@ static void directive_echo( char **p, int on_pass ) {
 }
 
 
+enum {
+   DIAGNOSTIC_WARNING,
+   DIAGNOSTIC_ERROR
+};
+
+
 static void directive_diagnostic( char **p, int level ) {
    /* warnings and errors are processed at pass 1 */
-   if ( pass != 1 ) {
+   if ( pass != 1 || ( level == DIAGNOSTIC_WARNING && flag_warnings < 1 )) {
       skip_to_eol( p );
       return;
    }
 
    switch ( level ) {
-      case 1: /* warning */
+      case DIAGNOSTIC_WARNING: /* warning */
          printf( "%s:%d: warning: ", current_file->filename, line );
          echo( p );
          break;
-      case 2: /* error */
+      case DIAGNOSTIC_ERROR: /* error */
          printf( "%s:%d: error: ", current_file->filename, line );
          echo( p );
          error_abort();
@@ -1697,9 +1716,9 @@ static int directive( char **p ) {
    } else if ( !strcmp( id, "ASSERT1" )) {
       directive_assert( p, 2 );
    } else if ( !strcmp( id, "ERROR" )) {
-      directive_diagnostic( p, 2 );
+      directive_diagnostic( p, DIAGNOSTIC_ERROR );
    } else if ( !strcmp( id, "WARNING" )) {
-      directive_diagnostic( p, 1 );
+      directive_diagnostic( p, DIAGNOSTIC_WARNING );
    } else if ( !strcmp( id, "NOLIST" )) {
       listing = 0;
    } else if ( !strcmp( id, "LIST" )) {
@@ -2156,6 +2175,12 @@ static int parse_args( char *argv[] ) {
             argv++;
             if ( !*argv ) return 0;
             listing_filename = *argv;
+         } else if ( !strcmp( *argv + 1, "w0" )) {
+            flag_warnings = 0;
+         } else if ( !strcmp( *argv + 1, "w1" )) {
+            flag_warnings = 1;
+         } else if ( !strcmp( *argv + 1, "w2" )) {
+            flag_warnings = 2;
          } else return 0;
       } else if (( p = strchr( *argv, '=' )) != NULL) {
          /* variable definition */
@@ -2178,10 +2203,14 @@ static int parse_args( char *argv[] ) {
 
 void print_usage( void ) {
    printf(
-      "Usage: asm6502 [-q] input -o output [-l listing] [VAR=number]...\n\n"
+      "Usage: asm6502 input -o output [options]... [VAR=number]...\n\n"
+      "Options:\n"
       "  -q             be quiet, unless an error occurred\n"
       "  -o output      set output file name\n"
-      "  -l listing     set optional listing file name\n\n"
+      "  -l listing     set optional listing file name\n"
+      "  -w0            disable all warnings\n"
+      "  -w1            only .warning directives\n"
+      "  -w2            enable all warnings (default)\n\n"
       "Variables defined from command line are are known to the assembler\n"
       "when assembling files. The numbers are parsed like number literals\n"
       "in the source code.\n\n"
