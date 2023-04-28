@@ -1154,29 +1154,30 @@ static int instruction_abxy_zpxy( char **p, instruction_desc *instr, value v ) {
    char id[ID_LEN];
    int am = AM_INV;
 
+   if ( pass == 2 ) {
+      if ( UNDEFINED( v )) error( ERR_UNDEF );
+   }
+
    ident_uppercase( p, id );
    /* test for absolute and zero-page X addressing */
    if ( !strcmp( id, "X" )) {
       if ((TYPE( v ) == TYPE_BYTE ) && AM_VALID( *instr, AM_ZPX )) am = AM_ZPX;
       else if ( AM_VALID( *instr, AM_ABX )) {
          am = AM_ABX;
-         if ( NUM_TYPE( v.v ) == TYPE_BYTE )
+         if ( pass == 2 && NUM_TYPE( v.v ) == TYPE_BYTE && AM_VALID( *instr, AM_ZPX ))
             print_warning( "non-optimal code; address could be of type byte" );
       } else error( ERR_AM );
    }
-      /* test for absolute and zero-page Y addressing */
+
+   /* test for absolute and zero-page Y addressing */
    else if ( !strcmp( id, "Y" )) {
       if ((TYPE( v ) == TYPE_BYTE ) && AM_VALID( *instr, AM_ZPY )) am = AM_ZPY;
       else if ( AM_VALID( *instr, AM_ABY )) {
          am = AM_ABY;
-         if ( NUM_TYPE( v.v ) == TYPE_BYTE )
+         if ( pass == 2 && NUM_TYPE( v.v ) == TYPE_BYTE && AM_VALID( *instr, AM_ZPY ))
             print_warning( "non-optimal code; address could be of type byte" );
       } else error( ERR_AM );
    } else error( ERR_AM );
-
-   if ( pass == 2 ) {
-      if ( UNDEFINED( v )) error( ERR_UNDEF );
-   }
 
    if (( am == AM_ZPX ) || ( am == AM_ZPY )) {
       emit_instr_1( instr, am, (u8) v.v );
@@ -1202,6 +1203,8 @@ static int instruction_abs_zp( instruction_desc *instr, value v ) {
       am = AM_ABS;
       if ( pass == 2 ) {
          if ( UNDEFINED( v )) error( ERR_UNDEF );
+         if ( NUM_TYPE( v.v ) == TYPE_BYTE && AM_VALID( *instr, AM_ZPY ))
+            print_warning( "non-optimal code; address could be of type byte" );
       }
       emit_instr_2( instr, am, v.v );
    } else error( ERR_AM );
