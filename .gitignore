@@ -2,7 +2,7 @@
 asm6502
 *.exe
 *.o
-output
+/output
 
 # Pelles C
 *.ppx
@@ -24,4 +24,11 @@ output
 .syncthing*
 *.swp
 
-scratch
+# Jetbrains CLion
+/.idea
+/cmake-build-debug/
+/cmake-build-release/
+
+# misc
+/scratch
+
