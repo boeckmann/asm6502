@@ -67,7 +67,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "asm6502.h"
 
 static int flag_quiet = 0;
-static int flag_warnings = 2;
+static int flag_warning_level = 2;
 
 static u8 *code = NULL;  /* holds the emitted code */
 static u16 code_size;
@@ -1144,7 +1144,7 @@ static int instruction_ind( char **p, instruction_desc *instr ) {
 
 
 static void print_warning( const char *s ) {
-   if ( flag_warnings > 1 && pass == 2 )
+   if ( flag_warning_level > 1 && pass == 2 )
       printf( "%s:%d: warning: %s\n", current_file->filename, line, s );
 }
 
@@ -1638,7 +1638,7 @@ enum {
 
 static void directive_diagnostic( char **p, int level ) {
    /* warnings and errors are processed at pass 1 */
-   if ( pass != 1 || ( level == DIAGNOSTIC_WARNING && flag_warnings < 1 )) {
+   if ( pass != 1 || ( level == DIAGNOSTIC_WARNING && flag_warning_level < 1 )) {
       skip_to_eol( p );
       return;
    }
@@ -2176,11 +2176,11 @@ static int parse_args( char *argv[] ) {
             if ( !*argv ) return 0;
             listing_filename = *argv;
          } else if ( !strcmp( *argv + 1, "w0" )) {
-            flag_warnings = 0;
+            flag_warning_level = 0;
          } else if ( !strcmp( *argv + 1, "w1" )) {
-            flag_warnings = 1;
+            flag_warning_level = 1;
          } else if ( !strcmp( *argv + 1, "w2" )) {
-            flag_warnings = 2;
+            flag_warning_level = 2;
          } else return 0;
       } else if (( p = strchr( *argv, '=' )) != NULL) {
          /* variable definition */
