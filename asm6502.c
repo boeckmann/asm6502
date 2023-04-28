@@ -221,7 +221,8 @@ enum {
    ERR_MAX_IF,
    ERR_PHASE,
    ERR_PHASE_SIZE,
-   ERR_DIV_BY_ZERO
+   ERR_DIV_BY_ZERO,
+   ERR_CPU_UNSUPPORTED
 };
 
 static char *err_msg[] = {
@@ -257,7 +258,8 @@ static char *err_msg[] = {
    "too many if nesting levels",
    "symbol value mismatch between pass one and two",
    "pass two code size greater than pass one code size",
-   "division by zero"
+   "division by zero",
+   "CPU not supported"
 };
 
 enum {
@@ -545,7 +547,7 @@ static value number( char **p ) {
 }
 
 
-static void ident_( char **p, char *id, int numeric ) {
+static void ident( char **p, char *id, int numeric, int uppercase ) {
    int i = 0;
 
    if (( !numeric && !isalpha( **p ) && ( **p != '_' ))
@@ -553,37 +555,10 @@ static void ident_( char **p, char *id, int numeric ) {
       error( ERR_ID );
 
    do {
-      *id++ = *( *p )++;
+      *id++ = (char) ( uppercase ? toupper( *( *p )++ ) : *( *p )++ );
       i++;
       if ( i >= ID_LEN ) error( ERR_ID_LEN );
    } while ( isalnum( **p ) || ( **p == '_' ));
-
-   *id = '\0';
-}
-
-
-/* read identifier which may not start with a digit */
-static void ident( char **p, char *id ) {
-   ident_( p, id, 0 );
-}
-
-
-/* read identifier which may start with a digit */
-static void numbered_ident( char **p, char *id ) {
-   ident_( p, id, 1 );
-}
-
-
-/* read identifier and convert to upper case */
-static void ident_uppercase( char **p, char *id ) {
-   int i = 0;
-
-   if ( !isalpha( **p )) error( ERR_ID );
-   do {
-      *id++ = (char) toupper( *( *p )++ );
-      i++;
-      if ( i >= ID_LEN ) error( ERR_ID_LEN );
-   } while ( isalnum( **p ));
 
    *id = '\0';
 }
@@ -608,7 +583,7 @@ static value primary( char **p ) {
       ( *p ) += 2;
    } else if ( **p == LOCAL_LABEL_LETTER && isalnum( *( *p + 1 ))) {  /* local label*/
       ( *p )++;
-      numbered_ident( p, id );
+      ident( p, id, 1, 0 );
       sym = lookup( id, current_label->locals );
       if ( sym ) {
          res = sym->value;
@@ -630,14 +605,14 @@ static value primary( char **p ) {
       if ( **p != '\'' ) error( ERR_CHR );
       ( *p )++;
    } else if ( isalpha( **p )) {
-      ident( p, id );
+      ident( p, id, 0, 0 );
       sym = lookup( id, NULL);
       if ( !sym ) sym = reserve_label( id, NULL);
       skip_white( p );
       if ( **p == LOCAL_LABEL_LETTER ) {
          /* qualified identifier: local label or variable */
          ( *p )++;
-         numbered_ident( p, id );
+         ident( p, id, 1, 0 );
          local_sym = lookup( id, sym->locals );
          if ( !local_sym ) local_sym = reserve_label( id, sym );
          res = local_sym->value;
@@ -956,7 +931,7 @@ static void to_uppercase( char *p ) {
 
 
 static instruction_desc *get_instruction_descr( const char *p ) {
-   int l = 0, r = sizeof( instruction_tbl ) / sizeof( instruction_desc ), x;
+   int l = 0, r = instruction_tbl_size, x;
    int cmp;
 
    while ( r >= l ) {
@@ -1040,6 +1015,19 @@ static void emit_instr_2( instruction_desc *instr, int am, u16 o ) {
 }
 
 
+/* emit instruction with byte argument */
+static void emit_instr_2p( instruction_desc *instr, int am, u8 o, u8 p ) {
+   if ( pass == 2 ) {
+      if ( oc < code_size - 2 ) {
+         code[oc] = instr->op[am];
+         code[oc + 1] = o;
+         code[oc + 2] = p;
+      } else error( ERR_PHASE_SIZE );
+   }
+   oc += 3;
+}
+
+
 static int instruction_imp_acc( instruction_desc *instr ) {
    int am = AM_INV;
 
@@ -1068,8 +1056,7 @@ static int instruction_imm( char **p, instruction_desc *instr ) {
 }
 
 
-static int instruction_rel( instruction_desc *instr, value v ) {
-   int am = AM_REL;
+static u16 calculate_offset( value v ) {
    u16 pct = pc + 2u;
    u16 off;
 
@@ -1086,9 +1073,14 @@ static int instruction_rel( instruction_desc *instr, value v ) {
    }
    if ( v.v >= pct ) off = v.v - pct;
    else off = (u16) (( ~0u ) - ( pct - v.v - 1u ));
-   emit_instr_1( instr, am, off & 0xffu );
+   return off;
+}
 
-   return am;
+
+static int instruction_rel( instruction_desc *instr, value v ) {
+   u16 off = calculate_offset( v );
+   emit_instr_1( instr, AM_REL, off & 0xffu );
+   return AM_REL;
 }
 
 
@@ -1105,23 +1097,26 @@ static int instruction_ind( char **p, instruction_desc *instr ) {
    /* indirect X addressing mode? */
    if ( **p == ',' ) {
       skip_curr_and_white( p );
-      ident_uppercase( p, id );
+      ident( p, id, 0, 1 );
       if ( strcmp( id, "X" ) != 0 ) error( ERR_INX );
-      am = AM_INX;
+      if ( AM_VALID( *instr, AM_AIX )) am = AM_AIX;
+      else am = AM_ZIX;
       skip_white( p );
       if ( **p != ')' ) error( ERR_CLOSING_PAREN );
       skip_curr_and_white( p );
+
    } else {
       if ( **p != ')' ) error( ERR_CLOSING_PAREN );
       skip_curr_and_white( p );
       /* indirect Y addressing mode? */
       if ( **p == ',' ) {
          skip_curr_and_white( p );
-         ident_uppercase( p, id );
+         ident( p, id, 0, 1 );
          if ( strcmp( id, "Y" ) != 0 ) error( ERR_INY );
-         am = AM_INY;
+         am = AM_ZIY;
       } else {
-         am = AM_IND;
+         if ( AM_VALID( *instr, AM_ZIN )) am = AM_ZIN;
+         else am = AM_AIN;
       }
    }
 
@@ -1129,11 +1124,12 @@ static int instruction_ind( char **p, instruction_desc *instr ) {
 
    if ( pass == 2 ) {
       if ( UNDEFINED( v )) error( ERR_UNDEF );
-      if ((( am == AM_INX ) || am == ( AM_INY )) && (TYPE( v ) != TYPE_BYTE ))
+      if (( am == AM_ZIX || am == AM_ZIY || am == AM_ZIN )
+          && (TYPE( v ) != TYPE_BYTE ))
          error( ERR_ILLEGAL_TYPE );
    }
 
-   if ( am == AM_IND ) {
+   if ( am == AM_AIN || am == AM_AIX ) {
       emit_instr_2( instr, am, v.v );
    } else {
       emit_instr_1( instr, am, (u8) v.v );
@@ -1158,7 +1154,7 @@ static int instruction_abxy_zpxy( char **p, instruction_desc *instr, value v ) {
       if ( UNDEFINED( v )) error( ERR_UNDEF );
    }
 
-   ident_uppercase( p, id );
+   ident( p, id, 0, 1 );
    /* test for absolute and zero-page X addressing */
    if ( !strcmp( id, "X" )) {
       if ((TYPE( v ) == TYPE_BYTE ) && AM_VALID( *instr, AM_ZPX )) am = AM_ZPX;
@@ -1169,7 +1165,7 @@ static int instruction_abxy_zpxy( char **p, instruction_desc *instr, value v ) {
       } else error( ERR_AM );
    }
 
-   /* test for absolute and zero-page Y addressing */
+      /* test for absolute and zero-page Y addressing */
    else if ( !strcmp( id, "Y" )) {
       if ((TYPE( v ) == TYPE_BYTE ) && AM_VALID( *instr, AM_ZPY )) am = AM_ZPY;
       else if ( AM_VALID( *instr, AM_ABY )) {
@@ -1212,6 +1208,26 @@ static int instruction_abs_zp( instruction_desc *instr, value v ) {
 }
 
 
+/* bit branch, bit set/reset instructions */
+static int instruction_zp_rel( char **p, instruction_desc *instr, value v ) {
+   u16 off;
+   value rel;
+
+   if ( TYPE( v ) != TYPE_BYTE )
+      error( ERR_BYTE_RANGE );
+
+   rel = expr( p );
+   off = calculate_offset( rel );
+
+   if ( pass == 2 ) {
+      if ( UNDEFINED( v ) || UNDEFINED( rel )) error( ERR_UNDEF );
+   }
+   emit_instr_2p( instr, AM_ZPR, (u8) v.v, off );
+
+   return AM_ZPR;
+}
+
+
 /* process one instruction */
 static void instruction( char **p ) {
    char id[ID_LEN];
@@ -1220,7 +1236,7 @@ static void instruction( char **p ) {
    value v;
 
    /* first get instruction for given mnemonic */
-   ident_uppercase( p, id );
+   ident( p, id, 0, 1 );
    instr = get_instruction_descr( id );
    if ( !instr ) error( ERR_INSTR );
 
@@ -1248,7 +1264,8 @@ static void instruction( char **p ) {
          /* else we go through the possible absolute addressing modes */
       else if ( **p == ',' ) {
          skip_curr_and_white( p );
-         am = instruction_abxy_zpxy( p, instr, v );
+         if ( AM_VALID( *instr, AM_ZPR )) am = instruction_zp_rel( p, instr, v );
+         else am = instruction_abxy_zpxy( p, instr, v );
       }
          /* must be absolute or zero-page addressing */
       else {
@@ -1688,12 +1705,27 @@ static void directive_assert( char **p, int on_pass ) {
 }
 
 
+static void directive_cpu( char **p ) {
+   char cpu_type[ID_LEN];
+
+   skip_white(p);
+   ident( p, cpu_type, 1, 1 );
+   if ( !strcmp( cpu_type, "6502" )) {
+      select_6502();
+   } else if ( !strcmp( cpu_type, "65C02" )) {
+      select_65c02();
+   } else {
+      error( ERR_CPU_UNSUPPORTED );
+   }
+}
+
+
 static int directive( char **p ) {
    char id[ID_LEN];
    value v;
    int again = 0;
 
-   ident_uppercase( p, id );
+   ident( p, id, 0, 1 );
 
    if ( !strcmp( id, "ORG" )) {
       v = expr( p );
@@ -1727,6 +1759,8 @@ static int directive( char **p ) {
    } else if ( !strcmp( id, "LIST" )) {
       listing = list_statements;
       list_skip_one = 1;
+   } else if ( !strcmp( id, "CPU" )) {
+      directive_cpu( p );
    } else {
       error( ERR_NO_DIRECTIVE );
    }
@@ -1737,7 +1771,7 @@ static int directive( char **p ) {
 
 static int is_mnemonic( const char *id ) {
    char id_uppercase[ID_LEN];
-   int l = 0, r = sizeof( instruction_tbl ) / sizeof( instruction_desc ), x;
+   int l = 0, r = instruction_tbl_size, x;
    int cmp;
    strcpy( id_uppercase, id );
    to_uppercase( id_uppercase );
@@ -1770,11 +1804,11 @@ static int statement( char **p ) {
    /* first check for variable or label definition */
    if ( **p == LOCAL_LABEL_LETTER ) {
       ( *p )++;
-      numbered_ident( p, id1 );
+      ident( p, id1, 1, 0 );
       skip_white( p );
       label = LOCAL_LABEL;
    } else if ( isalpha( **p )) {
-      ident( p, id1 );
+      ident( p, id1, 0, 0 );
       skip_white( p );
       label = GLOBAL_LABEL;
    }
@@ -2011,7 +2045,7 @@ static int conditional_statement( char **p ) {
    if ( IS_END( **p )) return 0;
    if ( **p != DIRECTIVE_LETTER ) return 0;
    ( *p )++;
-   ident_uppercase( p, id );
+   ident( p, id, 0, 1 );
 
    if ( !strcmp( id, "IF" )) {
       directive_if( p, 1, 0 );
@@ -2244,6 +2278,8 @@ int main( int argc, char *argv[] ) {
       errors = 1;
       goto ret0;
    }
+
+   select_6502();
 
    /* first assembler pass */
    pass = 1;

@@ -1,0 +1,85 @@
+; additional instructions provided by the WDC65C02
+; for the other instructions see MOS6502.A65
+
+.cpu 65c02
+
+adc ($11)
+and ($11)
+
+bbr0 $47,@
+bbr1 $47,@
+bbr2 $47,@
+bbr3 $47,@
+bbr4 $47,@
+bbr5 $47,@
+bbr6 $47,@
+bbr7 $47,@
+
+bbs0 $47,@
+bbs1 $47,@
+bbs2 $47,@
+bbs3 $47,@
+bbs4 $47,@
+bbs5 $47,@
+bbs6 $47,@
+bbs7 $47,@
+
+bit $11,x
+bit $4711,x
+bit #42
+
+bra @
+
+cmp ($11)
+
+dec
+
+eor ($11)
+
+jmp ($4711, X)
+
+lda ($11)
+
+ora ($11)
+
+phx
+phy
+plx
+ply
+
+rmb0 $47
+rmb1 $47
+rmb2 $47
+rmb3 $47
+rmb4 $47
+rmb5 $47
+rmb6 $47
+rmb7 $47
+
+sbc ($11)
+
+smb0 $47
+smb1 $47
+smb2 $47
+smb3 $47
+smb4 $47
+smb5 $47
+smb6 $47
+smb7 $47
+
+sta ($11)
+
+stp
+
+stz $11
+stz $11,x
+stz $4711
+stz $4711,x
+
+trb $11
+trb $4711
+
+tsb $11
+tsb $4711
+
+wai

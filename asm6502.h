@@ -36,38 +36,47 @@ typedef unsigned short u16;
 
 /* addressing modes */
 enum {
-   AM_ACC = 0,
-   AM_IMP = 1,
-   AM_IMM = 2,
-   AM_REL = 3,
-   AM_ZP  = 4,
-   AM_ZPX = 5,
-   AM_ZPY = 6,
-   AM_ABS = 7,
-   AM_ABX = 8,
-   AM_ABY = 9,
-   AM_IND = 10,
-   AM_INX = 11,
-   AM_INY = 12,
-   AM_INV = 13
+   AM_ACC = 0,  /*         accumulator                       */
+   AM_IMP = 1,  /*         implied                           */
+   AM_IMM = 2,  /* #       immediate addressing              */
+   AM_REL = 3,  /* R       program counter relative          */
+   AM_ZP  = 4,  /* ZP      zero-page                         */
+   AM_ZPX = 5,  /* ZP,X    zero-page indexed with X          */
+   AM_ZPY = 6,  /* ZP,Y    zero-page indexed with Y          */
+   AM_ABS = 7,  /* A       absolute                          */
+   AM_ABX = 8,  /* A,X     absolute indexed with X           */
+   AM_ABY = 9,  /* A,Y     absolute indexed with Y           */
+   AM_AIN = 10, /* (A)     absolute indirect                 */
+   AM_ZIX = 11, /* (ZP,X)  zero-page indexed indirect        */
+   AM_ZIY = 12, /* (ZP),Y  zero-page indirect indexed with Y */
+   AM_ZIN = 13, /* (ZP)    zero-page indirect                */
+   AM_AIX = 14, /* (ABS,X) absolute indexed indirect         */
+   AM_ZPR = 15, /* ZP,R    zero-page, relative               */
+   AM_INV = 16
 };
 
 enum {
-   INV = 0xff
+   INV = 0xfc
 };
 
 typedef struct instruction_desc {
-   char mn[4];
-   u8 op[13];
+   char mn[5];
+   u8 op[16];
 } instruction_desc;
 
-extern instruction_desc instruction_tbl[56];
-extern const unsigned itbl_size;
 
-extern u16 am_size[13];
+extern instruction_desc *instruction_tbl;
+extern instruction_desc itbl_6502[56];
+extern instruction_desc itbl_65c02[98];
+
+extern int instruction_tbl_size;
+
+extern u16 am_size[16];
 
 #define AM_VALID( instr, am ) ((instr).op[am] != INV)
-
 #define MAXINT( a, b ) (((b) >= (a)) ? (b) : (a))
+
+void select_6502(void);
+void select_65c02(void);
 
 #endif
