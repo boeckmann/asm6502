@@ -1203,7 +1203,7 @@ static int instruction_abs_zp( instruction_desc *instr, value v ) {
       am = AM_ABS;
       if ( pass == 2 ) {
          if ( UNDEFINED( v )) error( ERR_UNDEF );
-         if ( NUM_TYPE( v.v ) == TYPE_BYTE && AM_VALID( *instr, AM_ZPY ))
+         if ( NUM_TYPE( v.v ) == TYPE_BYTE && AM_VALID( *instr, AM_ZP ))
             print_warning( "non-optimal code; address could be of type byte" );
       }
       emit_instr_2( instr, am, v.v );
