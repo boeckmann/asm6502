@@ -34,22 +34,27 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 typedef unsigned char u8;
 typedef unsigned short u16;
 
-#define AM_ACC 0
-#define AM_IMP 1
-#define AM_IMM 2
-#define AM_REL 3
-#define AM_ZP  4
-#define AM_ZPX 5
-#define AM_ZPY 6
-#define AM_ABS 7
-#define AM_ABX 8
-#define AM_ABY 9
-#define AM_IND 10
-#define AM_INX 11
-#define AM_INY 12
-#define AM_INV 13
+/* addressing modes */
+enum {
+   AM_ACC = 0,
+   AM_IMP = 1,
+   AM_IMM = 2,
+   AM_REL = 3,
+   AM_ZP  = 4,
+   AM_ZPX = 5,
+   AM_ZPY = 6,
+   AM_ABS = 7,
+   AM_ABX = 8,
+   AM_ABY = 9,
+   AM_IND = 10,
+   AM_INX = 11,
+   AM_INY = 12,
+   AM_INV = 13
+};
 
-#define INV   0xff
+enum {
+   INV = 0xff
+};
 
 typedef struct instruction_desc {
    char mn[4];

@@ -71,13 +71,13 @@ static int flag_quiet = 0;
 static u8 *code = NULL;  /* holds the emitted code */
 static u16 code_size;
 
-static int line;                    /* currently processed line number */
+static unsigned line;   /* currently processed line number */
 
 /* program counter and output counter may not be in sync */
 /* this happens if an .org directive is used, which modifies the */
 /* program counter but not the output counter. */
 
-static int pass;      /* current assembler pass */
+static int pass; /* current assembler pass */
 
 static u16 pc = 0;    /* program counter of currently assembled instruction */
 static u16 oc = 0;    /* counter of emitted output bytes */
@@ -93,9 +93,9 @@ typedef struct asm_file {
 typedef struct pos_stack {
    asm_file *file;
    char *pos;
-   int line;
-   u8 listing;
-   u8 list_statements;
+   unsigned line;
+   int listing;
+   int list_statements;
 } pos_stack;
 
 /* All files that are read during the assembly passes are stored here. */
@@ -112,15 +112,15 @@ static int pos_stk_ptr = 0;
 
 
 /* program listing data */
-static int listing = 0;           /* per-file listing enabled? must be true 
+static int listing = 0;           /* per-file listing enabled? must be true
                                      for the following to have any effect */
-static u8 list_statements = 0;   /* statement listing activated ? */
+static int list_statements = 0;   /* statement listing activated ? */
 static int list_skip_one = 0;     /* suppress current statement in listing */
 static FILE *list_file;
 
 /* if 0 processing of statements is disabled by conditional assembly
    directives */
-static u8 process_statements = 1;
+static int process_statements = 1;
 
 /* data type used when evaluating expressions */
 /* the value may be undefined */
@@ -143,7 +143,7 @@ typedef struct symbol {
    struct symbol *next;
    struct symbol *locals;  /* local sub-definitions */
    char *filename;
-   int line;
+   unsigned line;
 } symbol;
 
 enum {
@@ -1402,26 +1402,33 @@ static void free_files( void ) {
 }
 
 
-static void push_pos_stack( asm_file *f, char *pos, int l ) {
-   if ( pos_stk_ptr >= MAX_POS_STACK ) error( ERR_MAX_INC );
+static void push_pos_stack( asm_file *f, char *pos, unsigned l ) {
+   pos_stack *stk;
 
-   pos_stk[pos_stk_ptr].file = f;
-   pos_stk[pos_stk_ptr].pos = pos;
-   pos_stk[pos_stk_ptr].line = l;
-   pos_stk[pos_stk_ptr].listing = (char) listing;
-   pos_stk[pos_stk_ptr].list_statements = (char) list_statements;
+   if ( pos_stk_ptr >= MAX_POS_STACK ) error( ERR_MAX_INC );
+   stk = &pos_stk[pos_stk_ptr];
+
+   stk->file = f;
+   stk->pos = pos;
+   stk->line = l;
+   stk->listing = listing;
+   stk->list_statements = list_statements;
    list_statements = listing;
    pos_stk_ptr++;
 }
 
 
 static void pop_pos_stack( char **p ) {
+   pos_stack *stk;
+
    pos_stk_ptr--;
-   current_file = pos_stk[pos_stk_ptr].file;
-   *p = pos_stk[pos_stk_ptr].pos;
-   line = pos_stk[pos_stk_ptr].line;
-   listing = pos_stk[pos_stk_ptr].listing;
-   list_statements = pos_stk[pos_stk_ptr].list_statements;
+   stk = &pos_stk[pos_stk_ptr];
+
+   current_file = stk->file;
+   *p = stk->pos;
+   line = stk->line;
+   listing = stk->listing;
+   list_statements = stk->list_statements;
 }
 
 
@@ -1435,7 +1442,6 @@ static void directive_include( char **p ) {
    if ( !IS_END( **p )) error( ERR_EOL );
 
    skip_eol( p );
-
 
    /* read the include file */
    file = read_file( filename_buf );
@@ -1534,10 +1540,7 @@ static void directive_if( char **p, int positive_logic, int check_defined ) {
    if ( process_statements ) {
       v = expr( p );
       if ( check_defined ) process_statements = DEFINED( v );
-      else {
-         /*if (!DEFINED(v)) error(ERR_UNDEF);*/
-         process_statements = DEFINED( v ) && v.v != 0;
-      }
+      else process_statements = DEFINED( v ) && v.v != 0;
 
       if ( !positive_logic ) process_statements = !process_statements;
       if_stack[if_stack_count].condition_met = process_statements;
@@ -1813,12 +1816,10 @@ static void word_to_pchar( u16 w, char *p ) {
 }
 
 
-char list_addr_buf[20] = "           ";
-char list_code_buf[4] = "   ";
-
-
 static void list_statement( char *statement_start, u16 pc_start,
                             u16 oc_start, char *p, int skipped ) {
+   static char list_addr_buf[20] = "           ";
+   static char list_code_buf[4] = "   ";
    int count = 0;
 
    if ( !listing || list_skip_one ) return;
@@ -2189,7 +2190,7 @@ void print_usage( void ) {
 
 
 int main( int argc, char *argv[] ) {
-   char *ttext;
+   char *source;
 
    if ( !parse_args( argv )) {
       print_usage();
@@ -2214,8 +2215,8 @@ int main( int argc, char *argv[] ) {
 
    /* first assembler pass */
    pass = 1;
-   ttext = current_file->text;
-   do_pass( &ttext );
+   source = current_file->text;
+   do_pass( &source );
    code_size = oc;
    if ( errors ) {
       goto ret1;
@@ -2232,9 +2233,9 @@ int main( int argc, char *argv[] ) {
 
    /* second assembler pass */
    pass = 2;
-   ttext = current_file->text;
+   source = current_file->text;
    code = malloc( code_size );
-   do_pass( &ttext );
+   do_pass( &source );
 
    if ( oc != code_size && !errors ) {
       printf( "error: pass two code size less than pass one code size\n" );
@@ -2263,8 +2264,10 @@ int main( int argc, char *argv[] ) {
    ret2:
    if ( list_file ) fclose( list_file );
    free( code );
+
    ret1:
    free_files();
+
    ret0:
    free_symbol_tbl();
 

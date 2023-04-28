@@ -12,9 +12,14 @@ Copyright 2022-2023 by Bernd Boeckmann
 
         -  https://codeberg.org/boeckmann/asm6502
 
-       Binaries are provided for Windows, DOS, and OS/2. A Unix make file
-       is provided which should be easily adaptable to any C89 conformant C
-       compiler.
+       Binaries are provided for Windows, DOS, and OS/2. A Unix make
+       file is provided which should be easily adaptable to any ANSI C
+       conformant compiler.
+
+       There is a port of the Commodore 64 KERNAL v3 and BASIC v2 source to
+       ASM6502. If it is of interest to you, get it at:
+
+        -  https://github.com/boeckmann/c64krnl
 
 2 Introduction
 --------------
@@ -201,9 +206,10 @@ Copyright 2022-2023 by Bernd Boeckmann
 
        The assembler distinguishes two types of case-sensitive symbols:
        _labels_ and _variables_. A label stores the address of the
-       instruction or data it is currently assembling. It is defined at the
-       beginning of a line by appending its name with a colon. The colon
-       may be left out if the label name is not an instruction mnemonic.
+       instruction or data that is currently assembling. It is defined
+       at the beginning of a line by appending its name with a colon.
+       The colon may be left out if the label name is not an instruction
+       mnemonic.
 
        A variable is defined by assigning an expression to it. In the
        following example, hello is a label, and CHROUT is a variable.
@@ -212,7 +218,7 @@ Copyright 2022-2023 by Bernd Boeckmann
          hello:  jmp CHROUT
 
        Labels and variables may be of type byte or word. A label is of type
-       byte if it is assigned an address within the first 256 bytes (zero
+       byte if it is assigned an address within the first 256 bytes (zero-
        page). Otherwise, it is of type word. The data type of a variable
        is that of the expression assigned to it, unless it is forward-
        referenced.
@@ -221,9 +227,9 @@ Copyright 2022-2023 by Bernd Boeckmann
        before it is defined. Forward-referenced symbols are _always_ of
        type word, regardless of what is assigned to them.
 
-       If a variable is assigned a value multiple times, it must always be
-       the same value. Otherwise, it is an illegal redefinition. Labels may
-       not be defined more than once.
+       If a variable is assigned a value multiple times, it must be the
+       same value. Otherwise, it is an illegal redefinition. Labels may not
+       be defined more than once.
 
        Variables and labels may be defined locally by prepending their name
        with @. They are then associated with the previous non-local label
@@ -346,9 +352,9 @@ Copyright 2022-2023 by Bernd Boeckmann
        The comparison operators return 1 as true value, and 0 as false
        value.
 
-       They return an undefined value if at least one of their arguments
-       is undefined, with the logical or || operator being an exception to
-       this rule. It returns true if at least one of its arguments is true.
+       They return an undefined value if at least one of their arguments is
+       undefined, with the logical or || operator being an exception. It
+       returns true if at least one of its arguments is true.
 
        The logical negation operator ! is right-associative.
 
@@ -394,9 +400,9 @@ Copyright 2022-2023 by Bernd Boeckmann
 
  4.6.1 .ASSERT and .ASSERT1
 
-       Tests if the expression given as argument returns a true value,
-       otherwise terminated with an error. .ASSERT runs on pass two, and
-       ASSERT1 runs on pass one. The arguments following the first one are
+       Tests if the expression given first argument returns a true value,
+       otherwise terminates with an error. .ASSERT runs on pass two, and
+       ASSERT1 runs on pass one. The arguments following the first are
        handled like the .ECHO directive does it.
 
        Example:
@@ -497,8 +503,8 @@ Copyright 2022-2023 by Bernd Boeckmann
 
  4.6.9 .INCLUDE Directive
 
-       Substitutes the directive with the contents of a file given by the
-       argument for processing by the assembler.
+       Substitutes the directive with the assembler source contained in the
+       file given as argument.
 
        Example:
 
@@ -519,10 +525,10 @@ Copyright 2022-2023 by Bernd Boeckmann
 
 4.6.11 .ORG Directive
 
-       Sets the address counter for the currently processed instruction
-       to the numeric value of the argument. Does not modify the offset
-       into the output file. This means that .ORG can not be used to `jump
-       around' in the output file.
+       Sets the address counter to the numeric value of the argument. Does
+       not modify the offset into the output file. This means that .ORG
+       can not be used to `jump around' in the output file. May be used
+       multiple times.
 
        Example:
 
@@ -1076,4 +1082,4 @@ B Instruction Reference
 
          98         tya
 
-[Do 27 Apr 18:41:52 2023]
+[Fr 28 Apr 14:19:56 2023]
