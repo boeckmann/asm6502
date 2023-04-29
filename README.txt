@@ -116,13 +116,13 @@ Copyright 2022-2023 by Bernd Boeckmann
        This listing shows the lines of the assembler source side-by-side to
        the generated machine code in hexadecimal notation.
 
-         FPos  PC    Code          Line# Assembler text
+         Pos   Addr  Code          Line# Assembler text
          0000  0000  69 2A            1: ADC #42
          0002  0002  E8               2: INX
 
-       FPos indicates the position of the instructions regarding the output
-       file. PC represents the _location_ or _address_ of the code while it
-       is executed.
+       Pos indicates the position of the instructions regarding the output
+       file. Addr represents the _location_ or _address_ of the code while
+       it is executed.
 
        Let's further elaborate what the arguments to instructions may be.
        In the example above, `#42' is a numeric value that is directly used
@@ -435,7 +435,15 @@ Copyright 2022-2023 by Bernd Boeckmann
          .BYTE 47, 11
          .BYTE "Hello, World", 13, 10
 
- 4.6.4 .ECHO and .ECHO1 Directives
+ 4.6.4 .CPU Directive
+
+       Selects the instruction set the assembler understands depending on
+       the given CPU type.
+
+         .CPU 6502   ; targets the NMOS 6502 CPU
+         .CPU 65C02  ; targets the CMOS 65C02 CPU (experimental)
+
+ 4.6.5 .ECHO and .ECHO1 Directives
 
        Print the arguments to standard output. .ECHO does it on the
        second assembler pass, while .ECHO1 does it on the first pass. The
@@ -448,13 +456,13 @@ Copyright 2022-2023 by Bernd Boeckmann
 
          .ECHO "hexadecimal representation of ", 4711, " is ", [$]4711
 
- 4.6.5 .ERROR directive
+ 4.6.6 .ERROR directive
 
        Aborts the assembly along with file name and line number
        information. Accepts the same parameters as .ECHO for the error
        message.
 
- 4.6.6 .FILL Directive
+ 4.6.7 .FILL Directive
 
        Starting from the current position of the output file, emits as many
        bytes as given by the first argument. If the second argument is
@@ -466,7 +474,7 @@ Copyright 2022-2023 by Bernd Boeckmann
          .FILL 100       ; fill 100 bytes with zero
          .FILL 16, $EA   ; insert 16 NOPs ($EA) into the code
 
- 4.6.7 .IF, .IFN, .ELSE and .ENDIF Directives
+ 4.6.8 .IF, .IFN, .ELSE and .ENDIF Directives
 
        Conditionally assembles code if the condition of the argument to .IF
        or .IFN is met. For .IF, the condition is met if the argument yields
@@ -494,14 +502,14 @@ Copyright 2022-2023 by Bernd Boeckmann
        In listing files, the unprocessed lines are indicated by a minus
        after the line number instead of a colon.
 
- 4.6.8 .IFDEF and .IFNDEF Directives
+ 4.6.9 .IFDEF and .IFNDEF Directives
 
        An argument to .IFDEF is considered true, if its value is defined.
        An argument to .IFNDEF is considered true, if its value is
        undefined. Otherwise, the directives behave like their .IF and .IFN
        counterparts.
 
- 4.6.9 .INCLUDE Directive
+4.6.10 .INCLUDE Directive
 
        Substitutes the directive with the assembler source contained in the
        file given as argument.
@@ -510,7 +518,7 @@ Copyright 2022-2023 by Bernd Boeckmann
 
          .INCLUDE "c64prg.i65"
 
-4.6.10 .LIST and .NOLIST Directives
+4.6.11 .LIST and .NOLIST Directives
 
        If a listing file is given via command line, listing generation is
        initially enabled. If the user wants some parts of the code to be
@@ -523,7 +531,7 @@ Copyright 2022-2023 by Bernd Boeckmann
        A .NOLIST inside an include file does not propagate to the parent
        file.
 
-4.6.11 .ORG Directive
+4.6.12 .ORG Directive
 
        Sets the address counter to the numeric value of the argument. Does
        not modify the offset into the output file. This means that .ORG
@@ -534,12 +542,12 @@ Copyright 2022-2023 by Bernd Boeckmann
 
          .ORG $0801
 
-4.6.12 .WARNING Directive
+4.6.13 .WARNING Directive
 
        Prints a warning along with file name and line number information.
        Accepts the same parameters as .ECHO for the warning message.
 
-4.6.13 .WORD Directive
+4.6.14 .WORD Directive
 
        Produces one or more output words.
 
@@ -651,11 +659,15 @@ Copyright 2022-2023 by Bernd Boeckmann
 A Command Line Syntax
 ---------------------
 
-         Usage: asm6502 [-q] input -o output [-l listing] [VAR=number]...
+         Usage: asm6502 input -o output [options]... [VAR=number]...
          
+         Options:
            -q             be quiet, unless an error occurred
            -o output      set output file name
            -l listing     set optional listing file name
+           -w0            disable all warnings
+           -w1            only .warning directives
+           -w2            enable all warnings and hints (default)
 
        Variables defined from the command line are known to the assembler
        when assembling files. The numbers are parsed like number literals
@@ -1046,40 +1058,40 @@ B Instruction Reference
          94 15      sty $15,x
          8C 11 47   sty $4711
 
-  B.51 TAX - transfer X to accumulator
+  B.51 TAX - transfer accumulator to X
 
          AA         tax
 
        Flags: N Z
 
-  B.52 TAY - transfer Y to accumulator
+  B.52 TAY - transfer accumulator to Y
 
          A8         tay
 
        Flags: N Z
 
-  B.53 TSX - transfer X to stack pointer
+  B.53 TSX - transfer stack pointer to X
 
        Flags: N Z
 
          BA         tsx
 
-  B.54 TXA - transfer accumulator to X
+  B.54 TXA - transfer X to accumulator
 
        Flags: N Z
 
          8A         txa
 
-  B.55 TXS - transfer stack pointer to X
+  B.55 TXS - transfer X to stack pointer
 
        Flags: N Z
 
          9A         txs
 
-  B.56 TYA - transfer accumulator to Y
+  B.56 TYA - transfer Y to accumulator
 
        Flags: N Z
 
          98         tya
 
-[Fr 28 Apr 14:19:56 2023]
+[Sa 29 Apr 20:56:25 2023]

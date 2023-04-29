@@ -34,13 +34,25 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 typedef unsigned char u8;
 typedef unsigned short u16;
 
+
+enum {
+   ERR_LVL_WARNING,
+   ERR_LVL_FATAL
+};
+
+enum {
+   DIAGNOSTIC_LVL_NONE,
+   DIAGNOSTIC_LVL_WARN,
+   DIAGNOSTIC_LVL_NOTICE
+};
+
 /* addressing modes */
 enum {
    AM_ACC = 0,  /*         accumulator                       */
    AM_IMP = 1,  /*         implied                           */
    AM_IMM = 2,  /* #       immediate addressing              */
    AM_REL = 3,  /* R       program counter relative          */
-   AM_ZP  = 4,  /* ZP      zero-page                         */
+   AM_ZP = 4,   /* ZP      zero-page                         */
    AM_ZPX = 5,  /* ZP,X    zero-page indexed with X          */
    AM_ZPY = 6,  /* ZP,Y    zero-page indexed with Y          */
    AM_ABS = 7,  /* A       absolute                          */
@@ -56,6 +68,8 @@ enum {
 };
 
 enum {
+   OP_RTS = 0x60,
+   OP_JSR = 0x20,
    INV = 0xfc
 };
 
@@ -76,7 +90,8 @@ extern u16 am_size[16];
 #define AM_VALID( instr, am ) ((instr).op[am] != INV)
 #define MAXINT( a, b ) (((b) >= (a)) ? (b) : (a))
 
-void select_6502(void);
-void select_65c02(void);
+void select_6502( void );
+
+void select_65c02( void );
 
 #endif

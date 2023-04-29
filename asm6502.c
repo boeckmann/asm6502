@@ -67,7 +67,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "asm6502.h"
 
 static int flag_quiet = 0;
-static int flag_warning_level = 2;
+static int flag_diagnostic_level = 2;
 
 static u8 *code = NULL;  /* holds the emitted code */
 static u16 code_size;
@@ -200,8 +200,8 @@ enum {
    ERR_INSTR,
    ERR_AM,
    ERR_CLOSING_PAREN,
-   ERR_INX,
-   ERR_INY,
+   ERR_ZIX,
+   ERR_ZIY,
    ERR_NO_DIRECTIVE,
    ERR_UNDEF,
    ERR_ILLEGAL_TYPE,
@@ -945,10 +945,16 @@ static instruction_desc *get_instruction_descr( const char *p ) {
 }
 
 
+static u8 current_opcode = INV;
+static u8 last_opcode = INV;
+
+
 static void emit_byte( u8 b ) {
    if ( pass == 2 ) {
       if ( oc < code_size ) code[oc] = b;
       else error( ERR_PHASE_SIZE );
+
+      current_opcode = INV;
    }
 
    oc += 1;
@@ -964,6 +970,8 @@ static void emit( const char *p, u16 len ) {
             code[oc + i] = p[i];
          }
       } else error( ERR_PHASE_SIZE );
+
+      current_opcode = INV;
    }
    oc += len;
 }
@@ -975,8 +983,16 @@ static void emit_word( u16 w ) {
          code[oc] = w & 0xff;
          code[oc + 1] = w >> 8;
       } else error( ERR_PHASE_SIZE );
+
+      current_opcode = INV;
    }
    oc += 2;
+}
+
+
+static void print_notice( const char *s ) {
+   if ( flag_diagnostic_level >= DIAGNOSTIC_LVL_NOTICE && pass == 2 )
+      printf( "%s:%d: notice: %s\n", current_file->filename, line, s );
 }
 
 
@@ -985,7 +1001,15 @@ static void emit_instr_0( instruction_desc *instr, int am ) {
    if ( pass == 2 ) {
       if ( oc < code_size ) code[oc] = instr->op[am];
       else error( ERR_PHASE_SIZE );
+
+      last_opcode = current_opcode;
+      current_opcode = code[oc];
+
+      if ( current_opcode == OP_RTS && last_opcode == OP_JSR ) {
+         print_notice( "JSR followed by RTS can be replaced by JMP" );
+      }
    }
+
    oc += 1;
 }
 
@@ -996,6 +1020,10 @@ static void emit_instr_1( instruction_desc *instr, int am, u8 o ) {
       if ( oc < code_size - 1 ) {
          code[oc] = instr->op[am];
          code[oc + 1] = o;
+
+         last_opcode = current_opcode;
+         current_opcode = code[oc];
+
       } else error( ERR_PHASE_SIZE );
    }
    oc += 2;
@@ -1009,14 +1037,18 @@ static void emit_instr_2( instruction_desc *instr, int am, u16 o ) {
          code[oc] = instr->op[am];
          code[oc + 1] = o & 0xff;
          code[oc + 2] = o >> 8;
+
+         last_opcode = current_opcode;
+         current_opcode = code[oc];
+
       } else error( ERR_PHASE_SIZE );
    }
    oc += 3;
 }
 
 
-/* emit instruction with byte argument */
-static void emit_instr_2p( instruction_desc *instr, int am, u8 o, u8 p ) {
+/* emit instruction with two byte arguments */
+static void emit_instr_2b( instruction_desc *instr, int am, u8 o, u8 p ) {
    if ( pass == 2 ) {
       if ( oc < code_size - 2 ) {
          code[oc] = instr->op[am];
@@ -1098,7 +1130,7 @@ static int instruction_ind( char **p, instruction_desc *instr ) {
    if ( **p == ',' ) {
       skip_curr_and_white( p );
       ident( p, id, 0, 1 );
-      if ( strcmp( id, "X" ) != 0 ) error( ERR_INX );
+      if ( strcmp( id, "X" ) != 0 ) error( ERR_ZIX );
       if ( AM_VALID( *instr, AM_AIX )) am = AM_AIX;
       else am = AM_ZIX;
       skip_white( p );
@@ -1112,7 +1144,7 @@ static int instruction_ind( char **p, instruction_desc *instr ) {
       if ( **p == ',' ) {
          skip_curr_and_white( p );
          ident( p, id, 0, 1 );
-         if ( strcmp( id, "Y" ) != 0 ) error( ERR_INY );
+         if ( strcmp( id, "Y" ) != 0 ) error( ERR_ZIY );
          am = AM_ZIY;
       } else {
          if ( AM_VALID( *instr, AM_ZIN )) am = AM_ZIN;
@@ -1139,12 +1171,6 @@ static int instruction_ind( char **p, instruction_desc *instr ) {
 }
 
 
-static void print_warning( const char *s ) {
-   if ( flag_warning_level > 1 && pass == 2 )
-      printf( "%s:%d: warning: %s\n", current_file->filename, line, s );
-}
-
-
 /* handle absolute x and y, zero-page x and y addressing modes */
 static int instruction_abxy_zpxy( char **p, instruction_desc *instr, value v ) {
    char id[ID_LEN];
@@ -1161,7 +1187,7 @@ static int instruction_abxy_zpxy( char **p, instruction_desc *instr, value v ) {
       else if ( AM_VALID( *instr, AM_ABX )) {
          am = AM_ABX;
          if ( pass == 2 && NUM_TYPE( v.v ) == TYPE_BYTE && AM_VALID( *instr, AM_ZPX ))
-            print_warning( "non-optimal code; address could be of type byte" );
+            print_notice( "can be zero-page,X adressing - is absolute,X" );
       } else error( ERR_AM );
    }
 
@@ -1171,7 +1197,7 @@ static int instruction_abxy_zpxy( char **p, instruction_desc *instr, value v ) {
       else if ( AM_VALID( *instr, AM_ABY )) {
          am = AM_ABY;
          if ( pass == 2 && NUM_TYPE( v.v ) == TYPE_BYTE && AM_VALID( *instr, AM_ZPY ))
-            print_warning( "non-optimal code; address could be of type byte" );
+            print_notice( "can be zero-page,Y adressing - is absolute,Y" );
       } else error( ERR_AM );
    } else error( ERR_AM );
 
@@ -1200,7 +1226,7 @@ static int instruction_abs_zp( instruction_desc *instr, value v ) {
       if ( pass == 2 ) {
          if ( UNDEFINED( v )) error( ERR_UNDEF );
          if ( NUM_TYPE( v.v ) == TYPE_BYTE && AM_VALID( *instr, AM_ZP ))
-            print_warning( "non-optimal code; address could be of type byte" );
+            print_notice( "can be zero-page adressing - is absolute" );
       }
       emit_instr_2( instr, am, v.v );
    } else error( ERR_AM );
@@ -1222,7 +1248,7 @@ static int instruction_zp_rel( char **p, instruction_desc *instr, value v ) {
    if ( pass == 2 ) {
       if ( UNDEFINED( v ) || UNDEFINED( rel )) error( ERR_UNDEF );
    }
-   emit_instr_2p( instr, AM_ZPR, (u8) v.v, off );
+   emit_instr_2b( instr, AM_ZPR, (u8) v.v, off );
 
    return AM_ZPR;
 }
@@ -1650,25 +1676,20 @@ static void directive_echo( char **p, int on_pass ) {
 }
 
 
-enum {
-   DIAGNOSTIC_WARNING,
-   DIAGNOSTIC_ERROR
-};
-
-
 static void directive_diagnostic( char **p, int level ) {
    /* warnings and errors are processed at pass 1 */
-   if ( pass != 1 || ( level == DIAGNOSTIC_WARNING && flag_warning_level < 1 )) {
+   if ( pass != 1 || ( level == ERR_LVL_WARNING
+                       && flag_diagnostic_level < DIAGNOSTIC_LVL_WARN )) {
       skip_to_eol( p );
       return;
    }
 
    switch ( level ) {
-      case DIAGNOSTIC_WARNING: /* warning */
+      case ERR_LVL_WARNING: /* warning */
          printf( "%s:%d: warning: ", current_file->filename, line );
          echo( p );
          break;
-      case DIAGNOSTIC_ERROR: /* error */
+      case ERR_LVL_FATAL: /* error */
          printf( "%s:%d: error: ", current_file->filename, line );
          echo( p );
          error_abort();
@@ -1708,7 +1729,7 @@ static void directive_assert( char **p, int on_pass ) {
 static void directive_cpu( char **p ) {
    char cpu_type[ID_LEN];
 
-   skip_white(p);
+   skip_white( p );
    ident( p, cpu_type, 1, 1 );
    if ( !strcmp( cpu_type, "6502" )) {
       select_6502();
@@ -1751,9 +1772,9 @@ static int directive( char **p ) {
    } else if ( !strcmp( id, "ASSERT1" )) {
       directive_assert( p, 2 );
    } else if ( !strcmp( id, "ERROR" )) {
-      directive_diagnostic( p, DIAGNOSTIC_ERROR );
+      directive_diagnostic( p, ERR_LVL_FATAL );
    } else if ( !strcmp( id, "WARNING" )) {
-      directive_diagnostic( p, DIAGNOSTIC_WARNING );
+      directive_diagnostic( p, ERR_LVL_WARNING );
    } else if ( !strcmp( id, "NOLIST" )) {
       listing = 0;
    } else if ( !strcmp( id, "LIST" )) {
@@ -2213,11 +2234,11 @@ static int parse_args( char *argv[] ) {
             if ( !*argv ) return 0;
             listing_filename = *argv;
          } else if ( !strcmp( *argv + 1, "w0" )) {
-            flag_warning_level = 0;
+            flag_diagnostic_level = 0;
          } else if ( !strcmp( *argv + 1, "w1" )) {
-            flag_warning_level = 1;
+            flag_diagnostic_level = 1;
          } else if ( !strcmp( *argv + 1, "w2" )) {
-            flag_warning_level = 2;
+            flag_diagnostic_level = 2;
          } else return 0;
       } else if (( p = strchr( *argv, '=' )) != NULL) {
          /* variable definition */
@@ -2242,7 +2263,7 @@ void print_usage( void ) {
    printf(
       "Usage: asm6502 input -o output [options]... [VAR=number]...\n\n"
       "Options:\n"
-      "  -q             be quiet, unless an error occurred\n"
+      "  -q             be quiet, unless errors or warnings occur\n"
       "  -o output      set output file name\n"
       "  -l listing     set optional listing file name\n"
       "  -w0            disable all warnings\n"

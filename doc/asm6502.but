@@ -1,6 +1,7 @@
 \cfg{chapter}{}
 \cfg{text-chapter-numeric}{true}
 \cfg{text-chapter-suffix}{ }
+\cfg{paper-base-font-size}{13}
  
 \title ASM6502 Assembler Manual
 
@@ -81,11 +82,11 @@ The set of instructions a CPU understands is called \e{instruction set}. There a
 
 Beside generating an output file containing machine code, ASM6502 may also generate a \e{listing file} containing a \e{program listing}. This listing shows the lines of the assembler source side-by-side to the generated machine code in hexadecimal notation.
 
-\c FPos  PC    Code          Line# Assembler text
+\c Pos   Addr  Code          Line# Assembler text
 \c 0000  0000  69 2A            1: ADC #42
 \c 0002  0002  E8               2: INX
 
-FPos indicates the position of the instructions regarding the output file. PC represents the \e{location} or \e{address} of the code while it is executed.
+Pos indicates the position of the instructions regarding the output file. Addr represents the \e{location} or \e{address} of the code while it is executed.
 
 Let's further elaborate what the arguments to instructions may be. In the example above, \c{#42} is a numeric value that is directly used to do the addition. It is therefore called an \e{immediate} value, and the mode the processor operates in is called \e{immediate addressing} mode. The \c{INX} instruction above implicitly operates on a register called X. For this reason it is called \e{implicit addressing}. Often, the argument specifies a memory location. This memory location may be referenced to the start of the address space. In this case it is called \e{absolute addressing} mode. If the memory location is specified relative to some other location we call it \e{relative addressing} mode. Sometimes one does not want to encode a fixed memory location into the machine instruction, but instead use the content of some memory location as the address to operate on. This is called \e{indirect addressing}.
 
@@ -299,6 +300,12 @@ Example:
 \c .BYTE 47, 11
 \c .BYTE "Hello, World", 13, 10
 
+\S{}.CPU Directive
+
+Selects the instruction set the assembler understands depending on the given CPU type.
+
+\c .CPU 6502   ; targets the NMOS 6502 CPU
+\c .CPU 65C02  ; targets the CMOS 65C02 CPU (experimental)
 
 \S{}.ECHO and .ECHO1 Directives
 
@@ -470,11 +477,15 @@ Indexed indirect by X addresses the byte referenced by the contents of the word 
 
 \A{usage}Command Line Syntax
 
-\c Usage: asm6502 [-q] input -o output [-l listing] [VAR=number]...
+\c Usage: asm6502 input -o output [options]... [VAR=number]...
 \c 
+\c Options:
 \c   -q             be quiet, unless an error occurred
 \c   -o output      set output file name
 \c   -l listing     set optional listing file name
+\c   -w0            disable all warnings
+\c   -w1            only .warning directives
+\c   -w2            enable all warnings and hints (default)
 
 Variables defined from the command line are known to the assembler when assembling files. The numbers are parsed like number literals in the source code.
 
@@ -849,37 +860,37 @@ Flags: I=1
 \c 94 15      sty $15,x
 \c 8C 11 47   sty $4711
 
-\H{tax}TAX - transfer X to accumulator
+\H{tax}TAX - transfer accumulator to X
 
 \c AA         tax
 
 Flags: N Z
 
-\H{tay}TAY - transfer Y to accumulator
+\H{tay}TAY - transfer accumulator to Y
 
 \c A8         tay
 
 Flags: N Z
 
-\H{tsx}TSX - transfer X to stack pointer
+\H{tsx}TSX - transfer stack pointer to X
 
 Flags: N Z
 
 \c BA         tsx
 
-\H{txa}TXA - transfer accumulator to X
+\H{txa}TXA - transfer X to accumulator
 
 Flags: N Z
 
 \c 8A         txa
 
-\H{txs}TXS - transfer stack pointer to X
+\H{txs}TXS - transfer X to stack pointer
 
 Flags: N Z
 
 \c 9A         txs
 
-\H{tya}TYA - transfer accumulator to Y
+\H{tya}TYA - transfer Y to accumulator
 
 Flags: N Z
 
