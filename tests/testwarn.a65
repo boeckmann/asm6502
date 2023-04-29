@@ -5,10 +5,13 @@ lda [w]0,y                      ; warning level >= 2
 .warning "This is a warning"    ; warning level >= 1
 
 hello:
-  jsr hello
+  jsr hello           ; should trigger jsr, rts warning
   rts
 
 world:
-  jsr world
+  jsr world           ; should NOT trigger a warning
   .byte 1
+  rts
+
+  .byte $20,$06,$00   ; data - this should NOT trigger an optimization warning
   rts
