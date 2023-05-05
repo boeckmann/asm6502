@@ -4,6 +4,15 @@ asm6502
 *.o
 /output
 
+# ASM6502 output files
+*.lst
+*.bin
+
+# misc project files
+doc/asm6502.pdf
+doc/asm6502.txt
+doc/license.txt
+
 # Pelles C
 *.ppx
 *.tag

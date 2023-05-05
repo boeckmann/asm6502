@@ -1,0 +1,43 @@
+.nolist
+
+; C64 KENRAL definitions for ASM6502 
+
+PCINT	= $ff81
+IOINIT	= $ff84
+RAMTAS	= $ff87
+RESTOR	= $ff8a
+VECTOR	= $ff8d
+SETMSG	= $ff90
+SECND	= $ff93
+TKSA	= $ff96
+MEMTOP	= $ff99
+MEMBOT	= $ff9c
+SCNKEY	= $ff9f
+SETTMO	= $ffa2
+IECIN	= $ffa5
+IECOUT	= $ffa8
+UNTALK	= $ffab
+UNLSN	= $ffae
+LISTEN	= $ffb1
+TALK	= $ffb4
+READSS	= $ffb7
+SETLFS	= $ffba	
+SETNAM	= $ffbd	
+OPEN	= $ffc0	
+CLOSE	= $ffc3	
+CHKIN	= $ffc6	
+CHKOUT	= $ffc9	
+CLRCH	= $ffcc	
+CHRIN	= $ffcf
+CHROUT	= $ffd2
+LOAD	= $ffd5	
+SAVE	= $ffd8	
+SETTIM	= $ffdb
+RDTIM	= $ffde	
+STOP	= $ffe1 
+GETIN	= $ffe4
+CLALL	= $ffe7
+UDTIM	= $ffea
+SCRORG	= $ffed
+PLOT	= $fff0
+IOBASE	= $fff3

@@ -385,6 +385,10 @@ Example:
 \c .ORG $0801
 
 
+\S{}.SYM and .NOSYM Directives
+
+Selectively enables or disables the inclusion of defined labels and variables in the symbol map for specific code regions. \cw{.SYM} enables it (default), and \cw{.NOSYM} disables it. The symbol map is part of the program listing.
+
 \S{}.WARNING Directive
 
 Prints a warning along with file name and line number information. Accepts the same parameters as \cw{.ECHO} for the warning message.

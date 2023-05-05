@@ -4,10 +4,10 @@ projectIdent
 VpeMain
 1
 WRect
-544
-312
+2320
+929
 3312
-7774
+7765
 2
 MProject
 3
@@ -29,9 +29,9 @@ VComponent
 8
 WRect
 208
-199
-5685
-4285
+189
+5680
+4276
 0
 0
 9
@@ -39,5 +39,5 @@ WFileName
 11
 asm6502.tgt
 0
-2
+1
 7

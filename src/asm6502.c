@@ -64,25 +64,24 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define noreturn
 #endif
 
-#include "asm6502.h"
+typedef unsigned char u8;
+typedef unsigned short u16;
 
 static int flag_quiet = 0;
-static int flag_diagnostic_level = 2;
-
-static u8 *code = NULL;  /* holds the emitted code */
-static u16 code_size;
-
-static unsigned line;   /* currently processed line number */
 
 /* program counter and output counter may not be in sync */
 /* this happens if an .org directive is used, which modifies the */
 /* program counter but not the output counter. */
 
-static int pass; /* current assembler pass */
+static int pass_num; /* current assembler pass */
 
-static u16 pc = 0;    /* program counter of currently assembled instruction */
-static u16 oc = 0;    /* counter of emitted output bytes */
+static u16 address_counter = 0;    /* program counter of currently assembled instruction */
+static u16 output_counter = 0;    /* counter of emitted output bytes */
 
+static u8 *code = NULL;  /* holds the emitted code */
+static u16 code_size;
+
+static unsigned current_line;   /* currently processed line number */
 
 /* file and position structures */
 
@@ -95,8 +94,9 @@ typedef struct pos_stack {
    asm_file *file;
    char *pos;
    unsigned line;
-   int listing;
-   int list_statements;
+   int listing_enabled : 1;
+   int global_listing_enabled : 1;
+   int symmap_enabled : 1;
 } pos_stack;
 
 /* All files that are read during the assembly passes are stored here. */
@@ -112,11 +112,13 @@ static pos_stack pos_stk[MAX_POS_STACK];
 static int pos_stk_ptr = 0;
 
 
-/* program listing data */
-static int listing = 0;           /* per-file listing enabled? must be true
-                                     for the following to have any effect */
-static int list_statements = 0;   /* statement listing activated ? */
+/* per-file listing enabled? must be true for the following to have any effect */
+static int global_listing_enabled = 0;
+/* statement listing activated ? */
+static int listing_enabled = 0;
 static int list_skip_one = 0;     /* suppress current statement in listing */
+/* statement listing activated ? */
+static int symmap_enabled = 0;
 static FILE *list_file;
 
 /* if 0 processing of statements is disabled by conditional assembly
@@ -145,6 +147,7 @@ typedef struct symbol {
    struct symbol *locals;  /* local sub-definitions */
    char *filename;
    unsigned line;
+   int show_in_map;
 } symbol;
 
 enum {
@@ -158,14 +161,45 @@ symbol *symbol_tbl[SYMBOL_TBL_SIZE];
 static int symbol_count = 0;           /* number of global symbols */
 static symbol *current_label = NULL;   /* search scope for local labels */
 
-typedef struct if_state {
-   u8 process_statements;
-   u8 condition_met;         /* 1 = condition was met for if */
-} if_state;
+/* addressing modes */
+enum {
+   AM_ACC = 0,  /*         accumulator                       */
+   AM_IMP = 1,  /*         implied                           */
+   AM_IMM = 2,  /* #       immediate addressing              */
+   AM_REL = 3,  /* R       program counter relative          */
+   AM_ZP = 4,   /* ZP      zero-page                         */
+   AM_ZPX = 5,  /* ZP,X    zero-page indexed with X          */
+   AM_ZPY = 6,  /* ZP,Y    zero-page indexed with Y          */
+   AM_ABS = 7,  /* A       absolute                          */
+   AM_ABX = 8,  /* A,X     absolute indexed with X           */
+   AM_ABY = 9,  /* A,Y     absolute indexed with Y           */
+   AM_AIN = 10, /* (A)     absolute indirect                 */
+   AM_ZIX = 11, /* (ZP,X)  zero-page indexed indirect        */
+   AM_ZIY = 12, /* (ZP),Y  zero-page indirect indexed with Y */
+   AM_ZIN = 13, /* (ZP)    zero-page indirect                */
+   AM_AIX = 14, /* (ABS,X) absolute indexed indirect         */
+   AM_ZPR = 15, /* ZP,R    zero-page, relative               */
+   AM_INV = 16
+};
 
-#define IF_STATE_MAX 32
-if_state if_stack[IF_STATE_MAX];
-int if_stack_count = 0;
+enum {
+   OP_RTS = 0x60,
+   OP_JSR = 0x20,
+   INV = 0xfc
+};
+
+typedef struct instruction_desc {
+   char mn[5];
+   u8 op[16];
+} instruction_desc;
+
+
+static instruction_desc *instruction_tbl;
+static int instruction_tbl_size;
+static u16 am_size[16];
+
+#define AM_VALID( instr, am ) ((instr).op[am] != INV)
+#define MAXINT( a, b ) (((b) >= (a)) ? (b) : (a))
 
 /* symbol specific preprocessor directives */
 #define IS_LBL( x ) ((x).kind == KIND_LBL)
@@ -188,6 +222,28 @@ int if_stack_count = 0;
          (((a).v >= 0x100) || ((b).v >= 0x100)) \
             ? SET_TYPE((a), TYPE_WORD) \
             : SET_TYPE((a), MAXINT(TYPE(a),(TYPE(b))))
+
+
+typedef struct if_state {
+   u8 process_statements;
+   u8 condition_met;         /* 1 = condition was met for if */
+} if_state;
+
+#define IF_STATE_MAX 32
+static if_state if_stack[IF_STATE_MAX];
+static int if_stack_count = 0;
+
+enum {
+   ERR_LVL_WARNING,
+   ERR_LVL_FATAL
+};
+
+enum {
+   DIAGNOSTIC_LVL_WARN = 1,
+   DIAGNOSTIC_LVL_NOTICE
+};
+
+static int flag_diagnostic_level = DIAGNOSTIC_LVL_WARN;
 
 enum {
    ERR_NUM = 1,
@@ -396,7 +452,7 @@ static symbol *define_label( const char *id, u16 v, symbol *parent ) {
    else sym = acquire( id );
 
    if ( IS_VAR( *sym ) || (DEFINED( sym->value ) && ( sym->value.v != v ))) {
-      if ( pass == 1 ) error( ERR_REDEFINITION );
+      if ( pass_num == 1 ) error( ERR_REDEFINITION );
       else error( ERR_PHASE );
    }
 
@@ -405,7 +461,9 @@ static symbol *define_label( const char *id, u16 v, symbol *parent ) {
    sym->value.defined = 1;
    sym->kind = KIND_LBL;
    sym->filename = current_file->filename;
-   sym->line = line;
+   sym->line = current_line;
+   sym->show_in_map = symmap_enabled;
+
    return sym;
 }
 
@@ -430,14 +488,15 @@ static void define_variable( const char *id, const value v, symbol *parent ) {
 
    /* if already defined make sure the value did not change */
    if ( DEFINED( sym->value ) && sym->value.v != v.v ) {
-      if ( pass == 1 ) error( ERR_REDEFINITION );
+      if ( pass_num == 1 ) error( ERR_REDEFINITION );
       else error( ERR_PHASE );
    }
 
    sym->value.v = v.v;
    sym->value.defined = v.defined;
    sym->filename = ( current_file ) ? current_file->filename : NULL;
-   sym->line = line;
+   sym->line = current_line;
+   sym->show_in_map = symmap_enabled;
 
    /* if the type is already set do not change it */
    if ( !TYPE( sym->value )) sym->value.t = v.t;
@@ -511,7 +570,7 @@ static int starts_with( char *text, char *s ) {
 
 
 static value number( char **p ) {
-   value num = { 0 };
+   value num = {0};
    char *pt = *p;
    u8 typ;
 
@@ -568,7 +627,7 @@ static value expr( char ** );
 
 
 static value primary( char **p ) {
-   value res = { 0 };
+   value res = {0};
    char id[ID_LEN];
    symbol *sym, *local_sym;
 
@@ -590,7 +649,7 @@ static value primary( char **p ) {
       }
    } else if ( **p == PROGRAM_COUNTER_LETTER ) {
       ( *p )++;
-      res.v = pc;
+      res.v = address_counter;
       SET_TYPE( res, TYPE_WORD );
       SET_DEFINED( res );
    } else if ( **p == '\'' ) {
@@ -950,113 +1009,113 @@ static u8 last_opcode = INV;
 
 
 static void emit_byte( u8 b ) {
-   if ( pass == 2 ) {
-      if ( oc < code_size ) code[oc] = b;
+   if ( pass_num == 2 ) {
+      if ( output_counter < code_size ) code[output_counter] = b;
       else error( ERR_PHASE_SIZE );
 
       current_opcode = INV;
    }
 
-   oc += 1;
+   output_counter += 1;
 }
 
 
 static void emit( const char *p, u16 len ) {
    u16 i = 0;
 
-   if ( pass == 2 ) {
-      if ( oc - 1 < code_size - len ) {
+   if ( pass_num == 2 ) {
+      if ( output_counter - 1 < code_size - len ) {
          for ( i = 0; i < len; i++ ) {
-            code[oc + i] = p[i];
+            code[output_counter + i] = p[i];
          }
       } else error( ERR_PHASE_SIZE );
 
       current_opcode = INV;
    }
-   oc += len;
+   output_counter += len;
 }
 
 
 static void emit_word( u16 w ) {
-   if ( pass == 2 ) {
-      if ( oc < code_size - 1 ) {
-         code[oc] = w & 0xff;
-         code[oc + 1] = w >> 8;
+   if ( pass_num == 2 ) {
+      if ( output_counter < code_size - 1 ) {
+         code[output_counter] = w & 0xff;
+         code[output_counter + 1] = w >> 8;
       } else error( ERR_PHASE_SIZE );
 
       current_opcode = INV;
    }
-   oc += 2;
+   output_counter += 2;
 }
 
 
 static void print_notice( const char *s ) {
-   if ( flag_diagnostic_level >= DIAGNOSTIC_LVL_NOTICE && pass == 2 )
-      printf( "%s:%d: notice: %s\n", current_file->filename, line, s );
+   if ( flag_diagnostic_level >= DIAGNOSTIC_LVL_NOTICE && pass_num == 2 )
+      printf( "%s:%d: notice: %s\n", current_file->filename, current_line, s );
 }
 
 
 /* emit instruction without argument */
 static void emit_instr_0( instruction_desc *instr, int am ) {
-   if ( pass == 2 ) {
-      if ( oc < code_size ) code[oc] = instr->op[am];
+   if ( pass_num == 2 ) {
+      if ( output_counter < code_size ) code[output_counter] = instr->op[am];
       else error( ERR_PHASE_SIZE );
 
       last_opcode = current_opcode;
-      current_opcode = code[oc];
+      current_opcode = code[output_counter];
 
       if ( current_opcode == OP_RTS && last_opcode == OP_JSR ) {
          print_notice( "JSR followed by RTS can be replaced by JMP" );
       }
    }
 
-   oc += 1;
+   output_counter += 1;
 }
 
 
 /* emit instruction with byte argument */
 static void emit_instr_1( instruction_desc *instr, int am, u8 o ) {
-   if ( pass == 2 ) {
-      if ( oc < code_size - 1 ) {
-         code[oc] = instr->op[am];
-         code[oc + 1] = o;
+   if ( pass_num == 2 ) {
+      if ( output_counter < code_size - 1 ) {
+         code[output_counter] = instr->op[am];
+         code[output_counter + 1] = o;
 
          last_opcode = current_opcode;
-         current_opcode = code[oc];
+         current_opcode = code[output_counter];
 
       } else error( ERR_PHASE_SIZE );
    }
-   oc += 2;
+   output_counter += 2;
 }
 
 
 /* emit instruction with word argument */
 static void emit_instr_2( instruction_desc *instr, int am, u16 o ) {
-   if ( pass == 2 ) {
-      if ( oc < code_size - 2 ) {
-         code[oc] = instr->op[am];
-         code[oc + 1] = o & 0xff;
-         code[oc + 2] = o >> 8;
+   if ( pass_num == 2 ) {
+      if ( output_counter < code_size - 2 ) {
+         code[output_counter] = instr->op[am];
+         code[output_counter + 1] = o & 0xff;
+         code[output_counter + 2] = o >> 8;
 
          last_opcode = current_opcode;
-         current_opcode = code[oc];
+         current_opcode = code[output_counter];
 
       } else error( ERR_PHASE_SIZE );
    }
-   oc += 3;
+   output_counter += 3;
 }
 
 
 /* emit instruction with two byte arguments */
 static void emit_instr_2b( instruction_desc *instr, int am, u8 o, u8 p ) {
-   if ( pass == 2 ) {
-      if ( oc < code_size - 2 ) {
-         code[oc] = instr->op[am];
-         code[oc + 1] = o;
-         code[oc + 2] = p;
+   if ( pass_num == 2 ) {
+      if ( output_counter < code_size - 2 ) {
+         code[output_counter] = instr->op[am];
+         code[output_counter + 1] = o;
+         code[output_counter + 2] = p;
       } else error( ERR_PHASE_SIZE );
    }
-   oc += 3;
+   output_counter += 3;
 }
 
 
@@ -1080,7 +1139,7 @@ static int instruction_imm( char **p, instruction_desc *instr ) {
    ( *p )++;
    if ( instr->op[am] == INV ) error( ERR_AM );
    v = expr( p );
-   if ( pass == 2 ) {
+   if ( pass_num == 2 ) {
       if ( UNDEFINED( v )) error( ERR_UNDEF );
    }
    emit_instr_1( instr, am, (u8) to_byte( v ).v );
@@ -1089,13 +1148,13 @@ static int instruction_imm( char **p, instruction_desc *instr ) {
 
 
 static u16 calculate_offset( value v ) {
-   u16 pct = pc + 2u;
+   u16 pct = address_counter + 2u;
    u16 off;
 
    /* relative branch offsets are in 2-complement */
    /* have to calculate it by hand avoiding implementation defined behaviour */
    /* using unsigned int because int may not be in 2-complement */
-   if ( pass == 2 ) {
+   if ( pass_num == 2 ) {
       if ( UNDEFINED( v )) error( ERR_UNDEF );
 
       if (( v.v >= pct ) && ((u16) ( v.v - pct ) > 127u )) error( ERR_RELATIVE_RANGE );
@@ -1154,7 +1213,7 @@ static int instruction_ind( char **p, instruction_desc *instr ) {
 
    if (( instr->op[am] ) == INV ) error( ERR_AM );
 
-   if ( pass == 2 ) {
+   if ( pass_num == 2 ) {
       if ( UNDEFINED( v )) error( ERR_UNDEF );
       if (( am == AM_ZIX || am == AM_ZIY || am == AM_ZIN )
           && (TYPE( v ) != TYPE_BYTE ))
@@ -1176,7 +1235,7 @@ static int instruction_abxy_zpxy( char **p, instruction_desc *instr, value v ) {
    char id[ID_LEN];
    int am = AM_INV;
 
-   if ( pass == 2 ) {
+   if ( pass_num == 2 ) {
       if ( UNDEFINED( v )) error( ERR_UNDEF );
    }
 
@@ -1186,7 +1245,7 @@ static int instruction_abxy_zpxy( char **p, instruction_desc *instr, value v ) {
       if ((TYPE( v ) == TYPE_BYTE ) && AM_VALID( *instr, AM_ZPX )) am = AM_ZPX;
       else if ( AM_VALID( *instr, AM_ABX )) {
          am = AM_ABX;
-         if ( pass == 2 && NUM_TYPE( v.v ) == TYPE_BYTE && AM_VALID( *instr, AM_ZPX ))
+         if ( pass_num == 2 && NUM_TYPE( v.v ) == TYPE_BYTE && AM_VALID( *instr, AM_ZPX ))
             print_notice( "can be zero-page,X adressing - is absolute,X" );
       } else error( ERR_AM );
    }
@@ -1196,7 +1255,7 @@ static int instruction_abxy_zpxy( char **p, instruction_desc *instr, value v ) {
       if ((TYPE( v ) == TYPE_BYTE ) && AM_VALID( *instr, AM_ZPY )) am = AM_ZPY;
       else if ( AM_VALID( *instr, AM_ABY )) {
          am = AM_ABY;
-         if ( pass == 2 && NUM_TYPE( v.v ) == TYPE_BYTE && AM_VALID( *instr, AM_ZPY ))
+         if ( pass_num == 2 && NUM_TYPE( v.v ) == TYPE_BYTE && AM_VALID( *instr, AM_ZPY ))
             print_notice( "can be zero-page,Y adressing - is absolute,Y" );
       } else error( ERR_AM );
    } else error( ERR_AM );
@@ -1217,13 +1276,13 @@ static int instruction_abs_zp( instruction_desc *instr, value v ) {
 
    if ((TYPE( v ) == TYPE_BYTE ) && AM_VALID( *instr, AM_ZP )) {
       am = AM_ZP;
-      if ( pass == 2 ) {
+      if ( pass_num == 2 ) {
          if ( UNDEFINED( v )) error( ERR_UNDEF );
       }
       emit_instr_1( instr, am, (u8) v.v );
    } else if ( AM_VALID( *instr, AM_ABS )) {
       am = AM_ABS;
-      if ( pass == 2 ) {
+      if ( pass_num == 2 ) {
          if ( UNDEFINED( v )) error( ERR_UNDEF );
          if ( NUM_TYPE( v.v ) == TYPE_BYTE && AM_VALID( *instr, AM_ZP ))
             print_notice( "can be zero-page adressing - is absolute" );
@@ -1245,7 +1304,7 @@ static int instruction_zp_rel( char **p, instruction_desc *instr, value v ) {
    rel = expr( p );
    off = calculate_offset( rel );
 
-   if ( pass == 2 ) {
+   if ( pass_num == 2 ) {
       if ( UNDEFINED( v ) || UNDEFINED( rel )) error( ERR_UNDEF );
    }
    emit_instr_2b( instr, AM_ZPR, (u8) v.v, off );
@@ -1302,7 +1361,7 @@ static void instruction( char **p ) {
    /* update program counter */
    if ( am == AM_INV ) error( ERR_AM );
 
-   pc += am_size[am];
+   address_counter += am_size[am];
 }
 
 
@@ -1335,18 +1394,18 @@ static void directive_byte( char **p ) {
       if ( **p == '"' ) {
          tp = *p + 1;
          len = string_lit( p, NULL, 0 );
-         pc += (u16) len;
+         address_counter += (u16) len;
          emit( tp, (u16) len );
       } else {
          v = expr( p );
 
-         if ( pass == 2 ) {
+         if ( pass_num == 2 ) {
             if ( UNDEFINED( v )) error( ERR_UNDEF );
             if ( NUM_TYPE( v.v ) != TYPE_BYTE ) error( ERR_NO_BYTE );
          }
          emit_byte((u8) to_byte( v ).v );
 
-         pc++;
+         address_counter++;
       }
 
       skip_white( p );
@@ -1368,12 +1427,12 @@ static void directive_word( char **p ) {
 
       v = expr( p );
 
-      if ( pass == 2 ) {
+      if ( pass_num == 2 ) {
          if ( UNDEFINED( v )) error( ERR_UNDEF );
       }
       emit_word( v.v );
 
-      pc += 2;
+      address_counter += 2;
       skip_white( p );
       if ( **p == ',' ) {
          skip_curr_and_white( p );
@@ -1388,8 +1447,6 @@ static FILE *open_file( const char *fn, const char *mode ) {
 
    f = fopen( fn, mode );
    if ( f ) return f;
-
-   /* TODO: search in different paths for file to open */
 
    return NULL;
 }
@@ -1470,9 +1527,10 @@ static void push_pos_stack( asm_file *f, char *pos, unsigned l ) {
    stk->file = f;
    stk->pos = pos;
    stk->line = l;
-   stk->listing = listing;
-   stk->list_statements = list_statements;
-   list_statements = listing;
+   stk->listing_enabled = listing_enabled;
+   stk->global_listing_enabled = global_listing_enabled;
+   stk->symmap_enabled = symmap_enabled;
+   global_listing_enabled = listing_enabled;
    pos_stk_ptr++;
 }
 
@@ -1485,9 +1543,10 @@ static void pop_pos_stack( char **p ) {
 
    current_file = stk->file;
    *p = stk->pos;
-   line = stk->line;
-   listing = stk->listing;
-   list_statements = stk->list_statements;
+   current_line = stk->line;
+   listing_enabled = stk->listing_enabled;
+   global_listing_enabled = stk->global_listing_enabled;
+   symmap_enabled = stk->symmap_enabled;
 }
 
 
@@ -1507,11 +1566,11 @@ static void directive_include( char **p ) {
    if ( !file ) error_ext( ERR_OPEN, filename_buf );
 
    /* push current file and position to stk and set pointers to inc file */
-   push_pos_stack( current_file, *p, line + 1 );
+   push_pos_stack( current_file, *p, current_line + 1 );
 
    current_file = file;
    *p = current_file->text;
-   line = 1;
+   current_line = 1;
 }
 
 
@@ -1521,7 +1580,7 @@ static void directive_fill( char **p ) {
    count = expr( p );
    if ( UNDEFINED( count )) error( ERR_UNDEF );
 
-   pc += count.v;
+   address_counter += count.v;
 
    skip_white( p );
    if ( **p == ',' ) {
@@ -1534,10 +1593,10 @@ static void directive_fill( char **p ) {
       filler.v = 0;
    }
 
-   if ( pass == 2 ) {
-      memset( code + oc, filler.v, count.v );
+   if ( pass_num == 2 ) {
+      memset( code + output_counter, filler.v, count.v );
    }
-   oc += count.v;
+   output_counter += count.v;
 }
 
 
@@ -1545,7 +1604,7 @@ static void directive_binary( char **p ) {
    /* syntax: .binary "file"[,skip[,count]] */
    FILE *file;
    unsigned long size;
-   value skip, count = { 0 };
+   value skip, count = {0};
 
    /* read filename */
    skip_white( p );
@@ -1577,13 +1636,13 @@ static void directive_binary( char **p ) {
       count.v = (u16) size - skip.v;
    }
 
-   if ( pass == 2 ) {
+   if ( pass_num == 2 ) {
       fseek( file, skip.v, SEEK_SET );
-      fread( code + oc, count.v, 1, file );
+      fread( code + output_counter, count.v, 1, file );
    }
 
-   pc += count.v;
-   oc += count.v;
+   address_counter += count.v;
+   output_counter += count.v;
 
    fclose( file );
 }
@@ -1668,7 +1727,7 @@ static void echo( char **p ) {
 
 static void directive_echo( char **p, int on_pass ) {
    /* echo on second pass */
-   if ( pass != on_pass ) {
+   if ( pass_num != on_pass ) {
       skip_to_eol( p );
       return;
    }
@@ -1678,19 +1737,19 @@ static void directive_echo( char **p, int on_pass ) {
 
 static void directive_diagnostic( char **p, int level ) {
    /* warnings and errors are processed at pass 1 */
-   if ( pass != 1 || ( level == ERR_LVL_WARNING
-                       && flag_diagnostic_level < DIAGNOSTIC_LVL_WARN )) {
+   if ( pass_num != 1 || ( level == ERR_LVL_WARNING
+                           && flag_diagnostic_level < DIAGNOSTIC_LVL_WARN )) {
       skip_to_eol( p );
       return;
    }
 
    switch ( level ) {
       case ERR_LVL_WARNING: /* warning */
-         printf( "%s:%d: warning: ", current_file->filename, line );
+         printf( "%s:%d: warning: ", current_file->filename, current_line );
          echo( p );
          break;
       case ERR_LVL_FATAL: /* error */
-         printf( "%s:%d: error: ", current_file->filename, line );
+         printf( "%s:%d: error: ", current_file->filename, current_line );
          echo( p );
          error_abort();
          break;
@@ -1703,7 +1762,7 @@ static void directive_diagnostic( char **p, int level ) {
 static void directive_assert( char **p, int on_pass ) {
    value res;
 
-   if ( pass != on_pass ) {
+   if ( pass_num != on_pass ) {
       skip_to_eol( p );
       return;
    }
@@ -1711,7 +1770,7 @@ static void directive_assert( char **p, int on_pass ) {
    res = expr( p );
 
    if ( UNDEFINED( res ) || res.v == 0 ) {
-      printf( "%s:%d: assertion failed: ", current_file->filename, line );
+      printf( "%s:%d: assertion failed: ", current_file->filename, current_line );
       skip_white( p );
       if ( **p == ',' ) {
          ( *p )++;
@@ -1723,6 +1782,20 @@ static void directive_assert( char **p, int on_pass ) {
    } else {
       skip_to_eol( p );
    }
+}
+
+static instruction_desc itbl_6502[56];
+static instruction_desc itbl_65c02[98];
+
+static void select_6502( void ) {
+   instruction_tbl = itbl_6502;
+   instruction_tbl_size = sizeof( itbl_6502 ) / sizeof( instruction_desc );
+}
+
+
+static void select_65c02( void ) {
+   instruction_tbl = itbl_65c02;
+   instruction_tbl_size = sizeof( itbl_65c02 ) / sizeof( instruction_desc );
 }
 
 
@@ -1751,7 +1824,7 @@ static int directive( char **p ) {
    if ( !strcmp( id, "ORG" )) {
       v = expr( p );
       if ( UNDEFINED( v )) error( ERR_UNDEF );
-      pc = v.v;
+      address_counter = v.v;
    } else if ( !strcmp( id, "BYTE" )) {
       directive_byte( p );
    } else if ( !strcmp( id, "WORD" )) {
@@ -1776,10 +1849,14 @@ static int directive( char **p ) {
    } else if ( !strcmp( id, "WARNING" )) {
       directive_diagnostic( p, ERR_LVL_WARNING );
    } else if ( !strcmp( id, "NOLIST" )) {
-      listing = 0;
+      listing_enabled = 0;
    } else if ( !strcmp( id, "LIST" )) {
-      listing = list_statements;
+      listing_enabled = global_listing_enabled;
       list_skip_one = 1;
+   } else if ( !strcmp( id, "NOSYM" )) {
+      symmap_enabled = 0;
+   } else if ( !strcmp( id, "SYM" )) {
+      symmap_enabled = 1;
    } else if ( !strcmp( id, "CPU" )) {
       directive_cpu( p );
    } else {
@@ -1849,10 +1926,10 @@ static int statement( char **p ) {
       if ( **p == ':' ) ( *p )++;
 
       if ( label == GLOBAL_LABEL )
-         current_label = define_label( id1, pc, NULL);
+         current_label = define_label( id1, address_counter, NULL);
       else {
          if ( !current_label ) error( ERR_NO_GLOBAL );
-         define_label( id1, pc, current_label );
+         define_label( id1, address_counter, current_label );
       }
 
       skip_white_and_comment( p );
@@ -1899,15 +1976,15 @@ static void list_statement( char *statement_start, u16 pc_start,
    static char list_code_buf[4] = "   ";
    int count = 0;
 
-   if ( !listing || list_skip_one ) return;
+   if ( !listing_enabled || list_skip_one ) return;
 
-   fprintf( list_file, "%5d", line );
+   fprintf( list_file, "%5d", current_line );
    if ( skipped )
       fputs( "- ", list_file );
    else
       fputs( ": ", list_file );
 
-   if ( oc_start < oc ) {
+   if ( oc_start < output_counter ) {
       /* output program counter, but only if we emitted code */
       word_to_pchar( oc_start, list_addr_buf );
       word_to_pchar( pc_start, list_addr_buf + 5 );
@@ -1915,13 +1992,13 @@ static void list_statement( char *statement_start, u16 pc_start,
    } else
       fputs( "           ", list_file );
 
-   while ( oc_start < oc && count < 3 ) {
+   while ( oc_start < output_counter && count < 3 ) {
       byte_to_pchar( code[oc_start++] & 0xff, list_code_buf );
       fputs( list_code_buf, list_file );
       count++;
    }
 
-   if ( oc_start + count < oc )
+   if ( oc_start + count < output_counter )
       fputs( "...", list_file );
    else {
       while ( count < 4 ) {
@@ -2020,7 +2097,7 @@ static void list_symbols( void ) {
              "SYM TYPE  WHERE\n", list_file );
       for ( ; *sym_p; sym_p++ ) {
          sym = *sym_p;
-
+         if (!sym->show_in_map) continue;
          fill_dots( name_buf, ID_LEN );
          memcpy( name_buf, sym->name, strlen( sym->name ));
          fputs( name_buf, list_file );
@@ -2051,7 +2128,7 @@ static void list_symbols( void ) {
 
 
 static void list_filename( char *fn ) {
-   if ( listing ) {
+   if ( listing_enabled ) {
       fprintf( list_file, " FILE: %s\n", fn );
    }
 }
@@ -2094,7 +2171,7 @@ static int conditional_statement( char **p ) {
 }
 
 
-static void do_pass( char **p ) {
+static void pass( char **p ) {
    int err;
 
    char *statement_start;
@@ -2103,13 +2180,14 @@ static void do_pass( char **p ) {
    u16 pc_start;
    int conditional;
 
-   pc = 0;  /* initialize program counter to zero */
-   oc = 0;  /* initialize output counter to zero */
+   address_counter = 0;  /* initialize program counter to zero */
+   output_counter = 0;  /* initialize output counter to zero */
 
    last_file = current_file;
-   line = 1;
+   current_line = 1;
    current_label = NULL;
-   listing = list_statements;
+   listing_enabled = global_listing_enabled;
+   symmap_enabled = 1;
    process_statements = 1;
    if_stack_count = 0;
 
@@ -2119,7 +2197,7 @@ static void do_pass( char **p ) {
 
          if ( current_file != last_file ) {
             /* file changed (start or terminate processing of inc file ) */
-            if ( pass == 2 ) list_filename( current_file->filename );
+            if ( pass_num == 2 ) list_filename( current_file->filename );
          }
 
          if ( !**p ) {
@@ -2129,16 +2207,16 @@ static void do_pass( char **p ) {
          }
 
          statement_start = *p;
-         pc_start = pc;
-         oc_start = oc;
+         pc_start = address_counter;
+         oc_start = output_counter;
 
          if ( conditional_statement( p )) {
             conditional = 1;
          } else if ( process_statements ) {
             if ( statement( p )) {
                /* statement returns an "again" flag that is set by the include
-                  directive. If true we have to start over again with new file,
-                  position and line number */
+             directive. If true we have to start over again with new file,
+             position and line number */
                continue;
             }
          } else {
@@ -2149,16 +2227,16 @@ static void do_pass( char **p ) {
 
          if ( !IS_END( **p )) {
             /* every statement ends with a newline. if it is not found here
-               it is an error condition */
+           it is an error condition */
             error( ERR_EOL );
          }
 
-         if ( pass == 2 )
+         if ( pass_num == 2 )
             list_statement( statement_start, pc_start, oc_start, *p,
                             !conditional && !process_statements );
 
          skip_eol( p );
-         line++;
+         current_line++;
 
          list_skip_one = 0;
          last_file = current_file;
@@ -2168,9 +2246,9 @@ static void do_pass( char **p ) {
    } else {
       if ( error_type == ERROR_NORM )
          printf( "%s:%d: error: %s\n", current_file->filename,
-                 line, err_msg[err] );
+                 current_line, err_msg[err] );
       else if ( error_type == ERROR_EXT )
-         printf( "%s:%d: error: %s %s\n", current_file->filename, line,
+         printf( "%s:%d: error: %s %s\n", current_file->filename, current_line,
                  err_msg[err], error_hint );
    }
 }
@@ -2179,7 +2257,7 @@ static void do_pass( char **p ) {
 static int save_code( const char *fn, const u8 *data, int len ) {
    FILE *f = fopen( fn, "wb" );
    if ( !f ) return 0;
-   if (( fwrite( data, len, 1, f ) == 0 ) && ( oc != 0 )) {
+   if (( fwrite( data, len, 1, f ) == 0 ) && ( output_counter != 0 )) {
       fclose( f );
       return 0;
    }
@@ -2194,7 +2272,7 @@ static int init_listing( char *fn ) {
    char ts[80];
 
    list_file = fopen( fn, "wb" );
-   list_statements = list_file != NULL;
+   global_listing_enabled = list_file != NULL;
 
    if ( !list_file ) return 0;
 
@@ -2267,8 +2345,8 @@ void print_usage( void ) {
       "  -o output      set output file name\n"
       "  -l listing     set optional listing file name\n"
       "  -w0            disable all warnings\n"
-      "  -w1            only .warning directives\n"
-      "  -w2            enable all warnings (default)\n\n"
+      "  -w1            enable warnings (default)\n"
+      "  -w2            enable warnings and optimization hints\n\n"
       "Variables defined from command line are are known to the assembler\n"
       "when assembling files. The numbers are parsed like number literals\n"
       "in the source code.\n\n"
@@ -2303,10 +2381,10 @@ int main( int argc, char *argv[] ) {
    select_6502();
 
    /* first assembler pass */
-   pass = 1;
+   pass_num = 1;
    source = current_file->text;
-   do_pass( &source );
-   code_size = oc;
+   pass( &source );
+   code_size = output_counter;
    if ( errors ) {
       goto ret1;
    }
@@ -2321,12 +2399,12 @@ int main( int argc, char *argv[] ) {
    }
 
    /* second assembler pass */
-   pass = 2;
+   pass_num = 2;
    source = current_file->text;
    code = malloc( code_size );
-   do_pass( &source );
+   pass( &source );
 
-   if ( oc != code_size && !errors ) {
+   if ( output_counter != code_size && !errors ) {
       printf( "error: pass two code size less than pass one code size\n" );
       errors++;
    }
@@ -2335,16 +2413,16 @@ int main( int argc, char *argv[] ) {
       goto ret2;
    }
 
-   if ( listing )
+   if ( listing_filename )
       list_symbols();
 
    if ( !flag_quiet ) {
-      printf( "output file %s, %d bytes written\n", output_filename, oc );
+      printf( "output file %s, %d bytes written\n", output_filename, output_counter );
       if ( listing_filename )
          printf( "listing written to %s\n", listing_filename );
    }
 
-   if ( !save_code( output_filename, code, oc )) {
+   if ( !save_code( output_filename, code, output_counter )) {
       printf( "error saving file\n" );
       errors = 1;
       goto ret2;
@@ -2363,3 +2441,166 @@ int main( int argc, char *argv[] ) {
    if ( errors ) return EXIT_FAILURE;
    else return EXIT_SUCCESS;
 }
+
+
+static u16 am_size[16] = {1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 2, 2, 2, 3, 3};
+
+static instruction_desc itbl_6502[56] = {
+   {"ADC", {INV,  INV,  0x69, INV,  0x65, 0x75, INV,  0x6d, 0x7d, 0x79, INV,  0x61, 0x71, INV, INV, INV}},
+   {"AND", {INV,  INV,  0x29, INV,  0x25, 0x35, INV,  0x2d, 0x3d, 0x39, INV,  0x21, 0x31, INV, INV, INV}},
+   {"ASL", {0x0a, INV,  INV,  INV,  0x06, 0x16, INV,  0x0e, 0x1e, INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"BCC", {INV,  INV,  INV,  0x90, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"BCS", {INV,  INV,  INV,  0xb0, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"BEQ", {INV,  INV,  INV,  0xf0, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"BIT", {INV,  INV,  INV,  INV,  0x24, INV,  INV,  0x2c, INV,  INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"BMI", {INV,  INV,  INV,  0x30, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"BNE", {INV,  INV,  INV,  0xd0, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"BPL", {INV,  INV,  INV,  0x10, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"BRK", {INV,  0x00, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"BVC", {INV,  INV,  INV,  0x50, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"BVS", {INV,  INV,  INV,  0x70, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"CLC", {INV,  0x18, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"CLD", {INV,  0xd8, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"CLI", {INV,  0x58, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"CLV", {INV,  0xb8, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"CMP", {INV,  INV,  0xc9, INV,  0xc5, 0xd5, INV,  0xcd, 0xdd, 0xd9, INV,  0xc1, 0xd1, INV, INV, INV}},
+   {"CPX", {INV,  INV,  0xe0, INV,  0xe4, INV,  INV,  0xec, INV,  INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"CPY", {INV,  INV,  0xc0, INV,  0xc4, INV,  INV,  0xcc, INV,  INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"DEC", {INV,  INV,  INV,  INV,  0xc6, 0xd6, INV,  0xce, 0xde, INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"DEX", {INV,  0xca, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"DEY", {INV,  0x88, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"EOR", {INV,  INV,  0x49, INV,  0x45, 0x55, INV,  0x4d, 0x5d, 0x59, INV,  0x41, 0x51, INV, INV, INV}},
+   {"INC", {INV,  INV,  INV,  INV,  0xe6, 0xf6, INV,  0xee, 0xfe, INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"INX", {INV,  0xe8, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"INY", {INV,  0xc8, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"JMP", {INV,  INV,  INV,  INV,  INV,  INV,  INV,  0x4c, INV,  INV,  0x6c, INV,  INV,  INV, INV, INV}},
+   {"JSR", {INV,  INV,  INV,  INV,  INV,  INV,  INV,  0x20, INV,  INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"LDA", {INV,  INV,  0xa9, INV,  0xa5, 0xb5, INV,  0xad, 0xbd, 0xb9, INV,  0xa1, 0xb1, INV, INV, INV}},
+   {"LDX", {INV,  INV,  0xa2, INV,  0xa6, INV,  0xb6, 0xae, INV,  0xbe, INV,  INV,  INV,  INV, INV, INV}},
+   {"LDY", {INV,  INV,  0xa0, INV,  0xa4, 0xb4, INV,  0xac, 0xbc, INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"LSR", {0x4a, INV,  INV,  INV,  0x46, 0x56, INV,  0x4e, 0x5e, INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"NOP", {INV,  0xea, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"ORA", {INV,  INV,  0x09, INV,  0x05, 0x15, INV,  0x0d, 0x1d, 0x19, INV,  0x01, 0x11, INV, INV, INV}},
+   {"PHA", {INV,  0x48, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"PHP", {INV,  0x08, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"PLA", {INV,  0x68, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"PLP", {INV,  0x28, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"ROL", {0x2a, INV,  INV,  INV,  0x26, 0x36, INV,  0x2e, 0x3e, INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"ROR", {0x6a, INV,  INV,  INV,  0x66, 0x76, INV,  0x6e, 0x7e, INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"RTI", {INV,  0x40, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"RTS", {INV,  0x60, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"SBC", {INV,  INV,  0xe9, INV,  0xe5, 0xf5, INV,  0xed, 0xfd, 0xf9, INV,  0xe1, 0xf1, INV, INV, INV}},
+   {"SEC", {INV,  0x38, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"SED", {INV,  0xf8, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"SEI", {INV,  0x78, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"STA", {INV,  INV,  INV,  INV,  0x85, 0x95, INV,  0x8d, 0x9d, 0x99, INV,  0x81, 0x91, INV, INV, INV}},
+   {"STX", {INV,  INV,  INV,  INV,  0x86, INV,  0x96, 0x8e, INV,  INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"STY", {INV,  INV,  INV,  INV,  0x84, 0x94, INV,  0x8c, INV,  INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"TAX", {INV,  0xaa, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"TAY", {INV,  0xa8, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"TSX", {INV,  0xba, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"TXA", {INV,  0x8a, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"TXS", {INV,  0x9a, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV, INV, INV}},
+   {"TYA", {INV,  0x98, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV, INV, INV}}
+};
+
+static instruction_desc itbl_65c02[98] = {
+   {"ADC",  {INV,  INV,  0x69, INV,  0x65, 0x75, INV,  0x6d, 0x7d, 0x79, INV,  0x61, 0x71, 0x72, INV,  INV}},
+   {"AND",  {INV,  INV,  0x29, INV,  0x25, 0x35, INV,  0x2d, 0x3d, 0x39, INV,  0x21, 0x31, 0x32, INV,  INV}},
+   {"ASL",  {0x0a, INV,  INV,  INV,  0x06, 0x16, INV,  0x0e, 0x1e, INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"BBR0", {INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  0x0f}},
+   {"BBR1", {INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  0x1f}},
+   {"BBR2", {INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  0x2f}},
+   {"BBR3", {INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  0x3f}},
+   {"BBR4", {INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  0x4f}},
+   {"BBR5", {INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  0x5f}},
+   {"BBR6", {INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  0x6f}},
+   {"BBR7", {INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  0x7f}},
+   {"BBS0", {INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  0x8f}},
+   {"BBS1", {INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  0x9f}},
+   {"BBS2", {INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  0xaf}},
+   {"BBS3", {INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  0xbf}},
+   {"BBS4", {INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  0xcf}},
+   {"BBS5", {INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  0xdf}},
+   {"BBS6", {INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  0xef}},
+   {"BBS7", {INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  0xff}},
+   {"BCC",  {INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"BCS",  {INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"BEQ",  {INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"BIT",  {INV,  INV,  0x89, INV,  0x24, 0x34, INV,  0x2c, 0x3c, INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"BMI",  {INV,  INV,  INV,  0x30, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"BNE",  {INV,  INV,  INV,  0xd0, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"BPL",  {INV,  INV,  INV,  0x10, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"BRA",  {INV,  INV,  INV,  0x80, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"BRK",  {INV,  0x00, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"BVC",  {INV,  INV,  INV,  0x50, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"BVS",  {INV,  INV,  INV,  0x70, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"CLC",  {INV,  0x18, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"CLD",  {INV,  0xd8, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"CLI",  {INV,  0x58, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"CLV",  {INV,  0xb8, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"CMP",  {INV,  INV,  0xc9, INV,  0xc5, 0xd5, INV,  0xcd, 0xdd, 0xd9, INV,  0xc1, 0xd1, 0xd2, INV,  INV}},
+   {"CPX",  {INV,  INV,  0xe0, INV,  0xe4, INV,  INV,  0xec, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"CPY",  {INV,  INV,  0xc0, INV,  0xc4, INV,  INV,  0xcc, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"DEC",  {0x3a, INV,  INV,  INV,  0xc6, 0xd6, INV,  0xce, 0xde, INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"DEX",  {INV,  0xca, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"DEY",  {INV,  0x88, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"EOR",  {INV,  INV,  0x49, INV,  0x45, 0x55, INV,  0x4d, 0x5d, 0x59, INV,  0x41, 0x51, 0x52, INV,  INV}},
+   {"INC",  {0xee, INV,  INV,  INV,  0xe6, 0xf6, INV,  0xee, 0xfe, INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"INX",  {INV,  0xe8, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"INY",  {INV,  0xc8, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"JMP",  {INV,  INV,  INV,  INV,  INV,  INV,  INV,  0x4c, INV,  INV,  0x6c, INV,  INV,  INV,  0x7c, INV}},
+   {"JSR",  {INV,  INV,  INV,  INV,  INV,  INV,  INV,  0x20, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"LDA",  {INV,  INV,  0xa9, INV,  0xa5, 0xb5, INV,  0xad, 0xbd, 0xb9, INV,  0xa1, 0xb1, 0xb2, INV,  INV}},
+   {"LDX",  {INV,  INV,  0xa2, INV,  0xa6, INV,  0xb6, 0xae, INV,  0xbe, INV,  INV,  INV,  INV,  INV,  INV}},
+   {"LDY",  {INV,  INV,  0xa0, INV,  0xa4, 0xb4, INV,  0xac, 0xbc, INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"LSR",  {0x4a, INV,  INV,  INV,  0x46, 0x56, INV,  0x4e, 0x5e, INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"NOP",  {INV,  0xea, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"ORA",  {INV,  INV,  0x09, INV,  0x05, 0x15, INV,  0x0d, 0x1d, 0x19, INV,  0x01, 0x11, 0x12, INV,  INV}},
+   {"PHA",  {INV,  0x48, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"PHP",  {INV,  0x08, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"PHX",  {INV,  0xda, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"PHY",  {INV,  0x5a, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"PLA",  {INV,  0x68, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"PLP",  {INV,  0x28, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"PLX",  {INV,  0xfa, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"PLY",  {INV,  0x7a, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"RMB0", {INV,  INV,  INV,  INV,  0x07, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"RMB1", {INV,  INV,  INV,  INV,  0x17, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"RMB2", {INV,  INV,  INV,  INV,  0x27, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"RMB3", {INV,  INV,  INV,  INV,  0x37, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"RMB4", {INV,  INV,  INV,  INV,  0x47, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"RMB5", {INV,  INV,  INV,  INV,  0x57, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"RMB6", {INV,  INV,  INV,  INV,  0x67, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"RMB7", {INV,  INV,  INV,  INV,  0x77, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"ROL",  {0x2a, INV,  INV,  INV,  0x26, 0x36, INV,  0x2e, 0x3e, INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"ROR",  {0x6a, INV,  INV,  INV,  0x66, 0x76, INV,  0x6e, 0x7e, INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"RTI",  {INV,  0x40, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"RTS",  {INV,  0x60, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"SBC",  {INV,  INV,  0xe9, INV,  0xe5, 0xf5, INV,  0xed, 0xfd, 0xf9, INV,  0xe1, 0xf1, 0xf2, INV,  INV}},
+   {"SEC",  {INV,  0x38, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"SED",  {INV,  0xf8, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"SEI",  {INV,  0x78, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"SMB0", {INV,  INV,  INV,  INV,  0x87, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"SMB1", {INV,  INV,  INV,  INV,  0x97, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"SMB2", {INV,  INV,  INV,  INV,  0xa7, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"SMB3", {INV,  INV,  INV,  INV,  0xb7, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"SMB4", {INV,  INV,  INV,  INV,  0xc7, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"SMB5", {INV,  INV,  INV,  INV,  0xd7, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"SMB6", {INV,  INV,  INV,  INV,  0xe7, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"SMB7", {INV,  INV,  INV,  INV,  0xf7, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"STA",  {INV,  INV,  INV,  INV,  0x85, 0x95, INV,  0x8d, 0x9d, 0x99, INV,  0x81, 0x91, 0x92, INV,  INV}},
+   {"STP",  {INV,  0xdb, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"STX",  {INV,  INV,  INV,  INV,  0x86, INV,  0x96, 0x8e, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"STY",  {INV,  INV,  INV,  INV,  0x84, 0x94, INV,  0x8c, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"STZ",  {INV,  INV,  INV,  INV,  0x64, 0x74, INV,  0x9c, 0x9e, INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"TAX",  {INV,  0xaa, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"TAY",  {INV,  0xa8, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"TRB",  {INV,  INV,  INV,  INV,  0x14, INV,  INV,  0x1c, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"TSB",  {INV,  INV,  INV,  INV,  0x04, INV,  INV,  0x0c, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"TSX",  {INV,  0xba, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"TXA",  {INV,  0x8a, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"TXS",  {INV,  0x9a, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"TYA",  {INV,  0x98, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}},
+   {"WAI",  {INV,  0xcb, INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV,  INV}}
+};

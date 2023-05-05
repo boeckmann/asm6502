@@ -542,12 +542,19 @@ Copyright 2022-2023 by Bernd Boeckmann
 
          .ORG $0801
 
-4.6.13 .WARNING Directive
+4.6.13 .SYM and .NOSYM Directives
+
+       Selectively enables or disables the inclusion of defined labels and
+       variables in the symbol map for specific code regions. .SYM enables
+       it (default), and .NOSYM disables it. The symbol map is part of the
+       program listing.
+
+4.6.14 .WARNING Directive
 
        Prints a warning along with file name and line number information.
        Accepts the same parameters as .ECHO for the warning message.
 
-4.6.14 .WORD Directive
+4.6.15 .WORD Directive
 
        Produces one or more output words.
 
@@ -1094,4 +1101,4 @@ B Instruction Reference
 
          98         tya
 
-[Sa 29 Apr 20:56:25 2023]
+[Fr  5 Mai 14:50:21 2023]

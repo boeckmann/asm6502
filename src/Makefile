@@ -1,4 +1,4 @@
-OBJ=asm6502.o itbl.o
+OBJ=asm6502.o
 LIBS=
 
 CC=cc

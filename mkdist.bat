@@ -11,13 +11,10 @@ cd ..\win32
 ide2make -p asm6502.wpj
 wmake -h -f asm6502.mk
 cd ..\..\..
-copy project\watcom\dos\asm6502.exe output\bin\dos\asm6502.exe
-copy project\watcom\os2\asm6502.exe output\bin\os2\asm6502.exe
-copy project\watcom\win32\asm6502.exe output\bin\win32\asm6502.exe
-copy readme.md output\doc\asm6502.txt
-copy LICENSE output\doc\license.txt
-copy doc\asm6502.pdf output\doc\asm6502.pdf
+copy project\watcom\dos\asm6502.exe bin\dos\asm6502.exe
+copy project\watcom\os2\asm6502.exe bin\os2\asm6502.exe
+copy project\watcom\win32\asm6502.exe bin\win32\asm6502.exe
+copy readme.txt doc\asm6502.txt
+copy LICENSE doc\license.txt
 del asm6502.zip
-cd output
-zip -r ..\asm6502.zip *.*
-cd ..
+zip -r asm6502.zip bin doc\asm6502.txt doc\asm6502.pdf doc\instrtbl.pdf support
