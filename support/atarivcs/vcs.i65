@@ -1,0 +1,176 @@
+.NOLIST
+
+; Licensed under BSD-3 as part of ASM6502 assembler
+; see https://github.com/boeckmann/asm6502
+
+; This file defines hardware registers and memory mapping for the
+; Atari 2600. The original version was created by Andrew Davie. A newer version
+; under GPL is bundled with the DASM assembler https://dasm-assembler.github.io/.
+;
+; Many thanks to the original author(s) of this file, and to everyone who has
+; contributed to understanding the Atari 2600.  If you take issue with the
+; contents, or naming of registers, please get in contact via the github repo.
+;Please contribute, if you think you can improve this file!
+;
+; Latest Revisions...
+; 1.05a 05/MAY/2023     Adapted to ASM6502
+; 1.05  13/NOV/2003      - Correction to 1.04 - now functions as requested by MR.
+;                        - Added VERSION_VCS equate (which will reflect 100x version #)
+;                          This will allow conditional code to verify VCS.H being
+;                          used for code assembly.
+; 1.04  12/NOV/2003     Added TIA_BASE_WRITE_ADDRESS and TIA_BASE_READ_ADDRESS for
+;                       convenient disassembly/reassembly compatibility for hardware
+;                       mirrored reading/writing differences.  This is more a 
+;                       readability issue, and binary compatibility with disassembled
+;                       and reassembled sources.  Per Manuel Rotschkar's suggestion.
+; 1.03  12/MAY/2003     Added SEG segment at end of file to fix old-code compatibility
+;                       which was broken by the use of segments in this file, as
+;                       reported by Manuel Polik on [stella] 11/MAY/2003
+; 1.02  22/MAR/2003     Added TIMINT($285)
+; 1.01                  Constant offset added to allow use for 3F-style bankswitching
+;                        - define TIA_BASE_ADDRESS as $40 for Tigervision carts, otherwise
+;                          it is safe to leave it undefined, and the base address will
+;                          be set to 0.  Thanks to Eckhard Stolberg for the suggestion.
+;                          Note, may use -DLABEL=EXPRESSION to define TIA_BASE_ADDRESS
+;                        - register definitions are now generated through assignment
+;                          in uninitialised segments.  This allows a changeable base
+;                          address architecture.
+; 1.0   22/MAR/2003     Initial release
+
+
+;-------------------------------------------------------------------------------
+
+; TIA_BASE_ADDRESS
+; The TIA_BASE_ADDRESS defines the base address of access to TIA registers.
+; Normally 0, the base address should (externally, before including this file)
+; be set to $40 when creating 3F-bankswitched (and other?) cartridges.
+; The reason is that this bankswitching scheme treats any access to locations
+; < $40 as a bankswitch.
+
+TIA_BASE_ADDRESS    = TIA_BASE_ADDRESS ?: 0
+
+; Note: The address may be defined on the command-line, eg:
+; asm6502 code.asm -o code.bin TIA_BASE_ADDRESS=$40
+; *OR* by declaring the variable before including this file, eg:
+; TIA_BASE_ADDRESS = $40
+;   .include "vcs.i65"
+
+; Alternate read/write address capability - allows for some disassembly compatibility
+; usage ; to allow reassembly to binary perfect copies).  This is essentially catering
+; for the mirrored ROM hardware registers.
+
+; Usage: As per above, define the TIA_BASE_READ_ADDRESS and/or TIA_BASE_WRITE_ADDRESS
+; using a command-line assignment, as required.  If the addresses are not defined, 
+; they defaut to the TIA_BASE_ADDRESS.
+
+TIA_BASE_READ_ADDRESS = TIA_BASE_READ_ADDRESS ?: TIA_BASE_ADDRESS
+TIA_BASE_WRITE_ADDRESS = TIA_BASE_WRITE_ADDRESS ?: TIA_BASE_ADDRESS
+
+;-------------------------------------------------------------------------------
+
+            .ORG TIA_BASE_WRITE_ADDRESS
+
+    ; DO NOT CHANGE THE RELATIVE ORDERING OF REGISTERS!
+    
+VSYNC       .org @+1    ; $00   0000 00x0   Vertical Sync Set-Clear
+VBLANK      .org @+1    ; $01   xx00 00x0   Vertical Blank Set-Clear
+WSYNC       .org @+1    ; $02   ---- ----   Wait for Horizontal Blank
+RSYNC       .org @+1    ; $03   ---- ----   Reset Horizontal Sync Counter
+NUSIZ0      .org @+1    ; $04   00xx 0xxx   Number-Size player/missle 0
+NUSIZ1      .org @+1    ; $05   00xx 0xxx   Number-Size player/missle 1
+COLUP0      .org @+1    ; $06   xxxx xxx0   Color-Luminance Player 0
+COLUP1      .org @+1    ; $07   xxxx xxx0   Color-Luminance Player 1
+COLUPF      .org @+1    ; $08   xxxx xxx0   Color-Luminance Playfield
+COLUBK      .org @+1    ; $09   xxxx xxx0   Color-Luminance Background
+CTRLPF      .org @+1    ; $0A   00xx 0xxx   Control Playfield, Ball, Collisions
+REFP0       .org @+1    ; $0B   0000 x000   Reflection Player 0
+REFP1       .org @+1    ; $0C   0000 x000   Reflection Player 1
+PF0         .org @+1    ; $0D   xxxx 0000   Playfield Register Byte 0
+PF1         .org @+1    ; $0E   xxxx xxxx   Playfield Register Byte 1
+PF2         .org @+1    ; $0F   xxxx xxxx   Playfield Register Byte 2
+RESP0       .org @+1    ; $10   ---- ----   Reset Player 0
+RESP1       .org @+1    ; $11   ---- ----   Reset Player 1
+RESM0       .org @+1    ; $12   ---- ----   Reset Missle 0
+RESM1       .org @+1    ; $13   ---- ----   Reset Missle 1
+RESBL       .org @+1    ; $14   ---- ----   Reset Ball
+AUDC0       .org @+1    ; $15   0000 xxxx   Audio Control 0
+AUDC1       .org @+1    ; $16   0000 xxxx   Audio Control 1
+AUDF0       .org @+1    ; $17   000x xxxx   Audio Frequency 0
+AUDF1       .org @+1    ; $18   000x xxxx   Audio Frequency 1
+AUDV0       .org @+1    ; $19   0000 xxxx   Audio Volume 0
+AUDV1       .org @+1    ; $1A   0000 xxxx   Audio Volume 1
+GRP0        .org @+1    ; $1B   xxxx xxxx   Graphics Register Player 0
+GRP1        .org @+1    ; $1C   xxxx xxxx   Graphics Register Player 1
+ENAM0       .org @+1    ; $1D   0000 00x0   Graphics Enable Missle 0
+ENAM1       .org @+1    ; $1E   0000 00x0   Graphics Enable Missle 1
+ENABL       .org @+1    ; $1F   0000 00x0   Graphics Enable Ball
+HMP0        .org @+1    ; $20   xxxx 0000   Horizontal Motion Player 0
+HMP1        .org @+1    ; $21   xxxx 0000   Horizontal Motion Player 1
+HMM0        .org @+1    ; $22   xxxx 0000   Horizontal Motion Missle 0
+HMM1        .org @+1    ; $23   xxxx 0000   Horizontal Motion Missle 1
+HMBL        .org @+1    ; $24   xxxx 0000   Horizontal Motion Ball
+VDELP0      .org @+1    ; $25   0000 000x   Vertical Delay Player 0
+VDELP1      .org @+1    ; $26   0000 000x   Vertical Delay Player 1
+VDELBL      .org @+1    ; $27   0000 000x   Vertical Delay Ball
+RESMP0      .org @+1    ; $28   0000 00x0   Reset Missle 0 to Player 0
+RESMP1      .org @+1    ; $29   0000 00x0   Reset Missle 1 to Player 1
+HMOVE       .org @+1    ; $2A   ---- ----   Apply Horizontal Motion
+HMCLR       .org @+1    ; $2B   ---- ----   Clear Horizontal Move Registers
+CXCLR       .org @+1    ; $2C   ---- ----   Clear Collision Latches
+ 
+;-------------------------------------------------------------------------------
+
+            .ORG TIA_BASE_READ_ADDRESS
+
+                        ;                                           bit 7   bit 6
+CXM0P       .org @+1    ; $00       xx00 0000       Read Collision  M0-P1   M0-P0
+CXM1P       .org @+1    ; $01       xx00 0000                       M1-P0   M1-P1
+CXP0FB      .org @+1    ; $02       xx00 0000                       P0-PF   P0-BL
+CXP1FB      .org @+1    ; $03       xx00 0000                       P1-PF   P1-BL
+CXM0FB      .org @+1    ; $04       xx00 0000                       M0-PF   M0-BL
+CXM1FB      .org @+1    ; $05       xx00 0000                       M1-PF   M1-BL
+CXBLPF      .org @+1    ; $06       x000 0000                       BL-PF   -----
+CXPPMM      .org @+1    ; $07       xx00 0000                       P0-P1   M0-M1
+INPT0       .org @+1    ; $08       x000 0000       Read Pot Port 0
+INPT1       .org @+1    ; $09       x000 0000       Read Pot Port 1
+INPT2       .org @+1    ; $0A       x000 0000       Read Pot Port 2
+INPT3       .org @+1    ; $0B       x000 0000       Read Pot Port 3
+INPT4       .org @+1    ; $0C       x000 0000       Read Input (Trigger) 0
+INPT5       .org @+1    ; $0D       x000 0000       Read Input (Trigger) 1
+
+;-------------------------------------------------------------------------------
+
+            .ORG $280
+ 
+    ; RIOT MEMORY MAP
+
+SWCHA       .org @+1    ; $280      Port A data register for joysticks:
+                        ;           Bits 4-7 for player 1.  Bits 0-3 for player 2.
+
+SWACNT      .org @+1    ; $281      Port A data direction register (DDR)
+SWCHB       .org @+1    ; $282      Port B data (console switches)
+SWBCNT      .org @+1    ; $283      Port B DDR
+INTIM       .org @+1    ; $284      Timer output
+TIMINT      .org @+1    ; $285      Read the interrupt flags
+
+        ; Unused/undefined registers ($285-$294)
+
+            .org @+1    ; $286
+            .org @+1    ; $287
+            .org @+1    ; $288
+            .org @+1    ; $289
+            .org @+1    ; $28A
+            .org @+1    ; $28B
+            .org @+1    ; $28C
+            .org @+1    ; $28D
+            .org @+1    ; $28E
+            .org @+1    ; $28F
+            .org @+1    ; $290
+            .org @+1    ; $291
+            .org @+1    ; $292
+            .org @+1    ; $293
+
+TIM1T       .org @+1    ; $294      set 1 clock interval
+TIM8T       .org @+1    ; $295      set 8 clock interval
+TIM64T      .org @+1    ; $296      set 64 clock interval
+T1024T      .org @+1    ; $297      set 1024 clock interval

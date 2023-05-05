@@ -1,9 +1,8 @@
 ; C64 Hello World
 ; assemble to .PRG file: asm6502 hello.a65 -o hello.prg -l hello.lst
 
-.include "c64prg.i65"           ; generates basic-upstart
-
-CHROUT = $FFD2                  ; kernal output function address
+.include "../../support/c64/kernal.i65" ; C64 KERNAL definitions
+.include "../../support/c64/prg.i65"    ; generates basic-upstart
 
         ldx #0
 @l      lda hello@msg,x

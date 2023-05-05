@@ -231,7 +231,7 @@ typedef struct if_state {
 
 #define IF_STATE_MAX 32
 static if_state if_stack[IF_STATE_MAX];
-static int if_stack_count = 0;
+static int if_tos = 0;
 
 enum {
    ERR_LVL_WARNING,
@@ -278,7 +278,10 @@ enum {
    ERR_PHASE,
    ERR_PHASE_SIZE,
    ERR_DIV_BY_ZERO,
-   ERR_CPU_UNSUPPORTED
+   ERR_CPU_UNSUPPORTED,
+   ERR_MAX_REP,
+   ERR_MISSING_REP,
+   ERR_MISSING_ENDREP
 };
 
 static char *err_msg[] = {
@@ -315,7 +318,10 @@ static char *err_msg[] = {
    "symbol value mismatch between pass one and two",
    "pass two code size greater than pass one code size",
    "division by zero",
-   "CPU not supported"
+   "CPU not supported",
+   "too many repeat nesting levels",
+   "missing .REPEAT",
+   "missing .ENDREP"
 };
 
 enum {
@@ -1651,9 +1657,9 @@ static void directive_binary( char **p ) {
 static void directive_if( char **p, int positive_logic, int check_defined ) {
    value v;
 
-   if ( if_stack_count >= IF_STATE_MAX ) error( ERR_MAX_IF );
+   if ( if_tos >= IF_STATE_MAX ) error( ERR_MAX_IF );
 
-   if_stack[if_stack_count].process_statements = process_statements;
+   if_stack[if_tos].process_statements = process_statements;
 
    if ( process_statements ) {
       v = expr( p );
@@ -1661,28 +1667,28 @@ static void directive_if( char **p, int positive_logic, int check_defined ) {
       else process_statements = DEFINED( v ) && v.v != 0;
 
       if ( !positive_logic ) process_statements = !process_statements;
-      if_stack[if_stack_count].condition_met = process_statements;
+      if_stack[if_tos].condition_met = process_statements;
    } else {
       skip_to_eol( p );
    }
 
-   if_stack_count++;
+   if_tos++;
 }
 
 
 static void directive_else( void ) {
-   if ( !if_stack_count ) error( ERR_MISSING_IF );
+   if ( !if_tos ) error( ERR_MISSING_IF );
 
-   if ( if_stack[if_stack_count - 1].process_statements )
-      process_statements = !if_stack[if_stack_count - 1].condition_met;
+   if ( if_stack[if_tos - 1].process_statements )
+      process_statements = !if_stack[if_tos - 1].condition_met;
 }
 
 
 static void directive_endif( void ) {
-   if ( !if_stack_count ) error( ERR_MISSING_IF );
+   if ( !if_tos ) error( ERR_MISSING_IF );
 
-   if_stack_count--;
-   process_statements = if_stack[if_stack_count].process_statements;
+   if_tos--;
+   process_statements = if_stack[if_tos].process_statements;
 }
 
 
@@ -1813,6 +1819,53 @@ static void directive_cpu( char **p ) {
    }
 }
 
+typedef struct repeat_info {
+   asm_file *file;
+   unsigned line;
+   char *pos;
+   unsigned count;
+
+} repeat_info;
+
+#define MAX_REPEAT 8
+static repeat_info repeat_stk[MAX_REPEAT];
+static int repeat_tos;
+
+static void directive_repeat( char **p ) {
+   value v;
+   char *pt;
+
+   if ( repeat_tos == MAX_REPEAT ) error( ERR_MAX_REP );
+   skip_white( p );
+   v = number( p );
+
+   pt = *p;                   /* find next line to continue by .ENDREP */
+   skip_white_and_comment( p );
+   skip_eol( p );
+
+   repeat_stk[repeat_tos].count = v.v;
+   repeat_stk[repeat_tos].line = current_line + 1;
+   repeat_stk[repeat_tos].pos = *p;
+   repeat_stk[repeat_tos].file = current_file;
+   *p = pt;
+   repeat_tos++;
+}
+
+
+static int directive_endrep( char **p ) {
+   if ( repeat_tos == 0 || repeat_stk[repeat_tos-1].file != current_file ) {
+      error( ERR_MISSING_REP );
+   }
+   if ( repeat_stk[repeat_tos-1].count > 1 ) {
+      *p = repeat_stk[repeat_tos-1].pos;
+      current_line = repeat_stk[repeat_tos-1].line;
+      repeat_stk[repeat_tos-1].count--;
+      return 1;
+   } else {
+      repeat_tos--;
+   }
+   return 0;
+}
 
 static int directive( char **p ) {
    char id[ID_LEN];
@@ -1848,6 +1901,10 @@ static int directive( char **p ) {
       directive_diagnostic( p, ERR_LVL_FATAL );
    } else if ( !strcmp( id, "WARNING" )) {
       directive_diagnostic( p, ERR_LVL_WARNING );
+   } else if ( !strcmp( id, "REPEAT" )) {
+      directive_repeat( p );
+   } else if ( !strcmp( id, "ENDREP" )) {
+      again = directive_endrep( p );
    } else if ( !strcmp( id, "NOLIST" )) {
       listing_enabled = 0;
    } else if ( !strcmp( id, "LIST" )) {
@@ -2189,7 +2246,7 @@ static void pass( char **p ) {
    listing_enabled = global_listing_enabled;
    symmap_enabled = 1;
    process_statements = 1;
-   if_stack_count = 0;
+   if_tos = 0;
 
    if ( !( err = setjmp( error_jmp ))) {
       while ( **p || pos_stk_ptr > 0 ) {
@@ -2215,7 +2272,7 @@ static void pass( char **p ) {
          } else if ( process_statements ) {
             if ( statement( p )) {
                /* statement returns an "again" flag that is set by the include
-             directive. If true we have to start over again with new file,
+             and endrep directive. If true we have to start over again with new file,
              position and line number */
                continue;
             }
@@ -2231,7 +2288,7 @@ static void pass( char **p ) {
             error( ERR_EOL );
          }
 
-         if ( pass_num == 2 )
+         if ( pass_num == 2 && statement_start <= *p )
             list_statement( statement_start, pc_start, oc_start, *p,
                             !conditional && !process_statements );
 
@@ -2242,7 +2299,8 @@ static void pass( char **p ) {
          last_file = current_file;
       }
 
-      if ( if_stack_count ) error( ERR_MISSING_ENDIF );
+      if ( if_tos ) error( ERR_MISSING_ENDIF );
+      if ( repeat_tos ) error( ERR_MISSING_ENDREP );
    } else {
       if ( error_type == ERROR_NORM )
          printf( "%s:%d: error: %s\n", current_file->filename,
