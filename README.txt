@@ -542,19 +542,30 @@ Copyright 2022-2023 by Bernd Boeckmann
 
          .ORG $0801
 
-4.6.13 .SYM and .NOSYM Directives
+4.6.13 .REPEAT and .ENDREP
+
+       Repeats the block of code enclosed by .REPEAT and .ENDREP the number
+       of times given by argument to .REPEAT.
+
+       Example:
+
+         .REPEAT 30      ; ...for 30 overscan scanlines...
+           sta WSYNC
+         .ENDREP
+
+4.6.14 .SYM and .NOSYM Directives
 
        Selectively enables or disables the inclusion of defined labels and
        variables in the symbol map for specific code regions. .SYM enables
        it (default), and .NOSYM disables it. The symbol map is part of the
        program listing.
 
-4.6.14 .WARNING Directive
+4.6.15 .WARNING Directive
 
        Prints a warning along with file name and line number information.
        Accepts the same parameters as .ECHO for the warning message.
 
-4.6.15 .WORD Directive
+4.6.16 .WORD Directive
 
        Produces one or more output words.
 
@@ -1101,4 +1112,4 @@ B Instruction Reference
 
          98         tya
 
-[Fr  5 Mai 14:50:21 2023]
+[Fr  5 Mai 19:10:43 2023]

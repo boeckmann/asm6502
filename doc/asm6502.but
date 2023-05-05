@@ -385,6 +385,16 @@ Example:
 \c .ORG $0801
 
 
+\S{}.REPEAT and .ENDREP
+
+Repeats the block of code enclosed by \cw{.REPEAT} and \cw{.ENDREP} the number of times given by argument to \cw{.REPEAT}.
+
+Example:
+
+\c .REPEAT 30      ; ...for 30 overscan scanlines...
+\c   sta WSYNC
+\c .ENDREP
+
 \S{}.SYM and .NOSYM Directives
 
 Selectively enables or disables the inclusion of defined labels and variables in the symbol map for specific code regions. \cw{.SYM} enables it (default), and \cw{.NOSYM} disables it. The symbol map is part of the program listing.

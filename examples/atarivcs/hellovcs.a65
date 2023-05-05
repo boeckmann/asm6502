@@ -158,7 +158,7 @@ Phrase:
 
     .FILL $FFFA-@         ; Cart config (so 6507 can start it up).
                           ;
-                          ; This address will make DASM build a 4K cart image.
+                          ; This address will make ASM6502 build a 4K cart image.
                           ; Since the code actually takes < 300 bytes, you can
                           ; replace with ORG $F7FA to build a 2K image. Such
                           ; carts are wired to mirror their contents, so the
@@ -176,7 +176,7 @@ Phrase:
 
 ;
 ; Copyright 2011-2019 Carlos Duarte do Nascimento (Chester). All rights reserved.
-; Adapted 2023 to ASM6502 by Bernd Boeckmann
+; Adapted to ASM6502 by Bernd Boeckmann
 ;
 ; Redistribution and use in source and binary forms, with or without modification, are
 ; permitted provided that the following conditions are met:
