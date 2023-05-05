@@ -94,9 +94,9 @@ typedef struct pos_stack {
    asm_file *file;
    char *pos;
    unsigned line;
-   int listing_enabled : 1;
-   int global_listing_enabled : 1;
-   int symmap_enabled : 1;
+   int listing_enabled;
+   int global_listing_enabled;
+   int sym_map_enabled;
 } pos_stack;
 
 /* All files that are read during the assembly passes are stored here. */
@@ -1529,7 +1529,7 @@ static void push_pos_stack( asm_file *f, char *pos, unsigned l ) {
    stk->line = l;
    stk->listing_enabled = listing_enabled;
    stk->global_listing_enabled = global_listing_enabled;
-   stk->symmap_enabled = symmap_enabled;
+   stk->sym_map_enabled = symmap_enabled;
    global_listing_enabled = listing_enabled;
    pos_stk_ptr++;
 }
@@ -1546,7 +1546,7 @@ static void pop_pos_stack( char **p ) {
    current_line = stk->line;
    listing_enabled = stk->listing_enabled;
    global_listing_enabled = stk->global_listing_enabled;
-   symmap_enabled = stk->symmap_enabled;
+   symmap_enabled = stk->sym_map_enabled;
 }
 
 
@@ -2097,7 +2097,7 @@ static void list_symbols( void ) {
              "SYM TYPE  WHERE\n", list_file );
       for ( ; *sym_p; sym_p++ ) {
          sym = *sym_p;
-         if (!sym->show_in_map) continue;
+         if ( !sym->show_in_map ) continue;
          fill_dots( name_buf, ID_LEN );
          memcpy( name_buf, sym->name, strlen( sym->name ));
          fputs( name_buf, list_file );
