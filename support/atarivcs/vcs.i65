@@ -10,7 +10,7 @@
 ; Many thanks to the original author(s) of this file, and to everyone who has
 ; contributed to understanding the Atari 2600.  If you take issue with the
 ; contents, or naming of registers, please get in contact via the github repo.
-;Please contribute, if you think you can improve this file!
+; Please contribute, if you think you can improve this file!
 ;
 ; Latest Revisions...
 ; 1.05a 05/MAY/2023     Adapted to ASM6502
