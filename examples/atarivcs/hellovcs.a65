@@ -4,10 +4,10 @@
 ; A "Hello, World!" which illustrates an Atari 2600 programming
 ; introduction talk (slides at http://slideshare.net/chesterbr).
 ;
-; This is free software (see license below). Build it with DASM
-; (http://dasm-dillon.sourceforge.net/), by running:
+; This is free software (see license below). Build it with ASM6502
+; (http://github.com/boeckmann/asm6502), by running:
 ;
-;   dasm hello.asm -ohello.bin -f3
+;   asm6502 hellovcs.a65 -o hellovcs.bin
 ;
 
     .INCLUDE "../../support/atarivcs/vcs.i65"
