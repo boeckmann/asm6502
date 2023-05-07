@@ -10,7 +10,9 @@
 ;   asm6502 hellovcs.a65 -o hellovcs.bin
 ;
 
+    .NOSYM    ; comment this to enable listing of symbols defined in vcs.i65
     .INCLUDE "../../support/atarivcs/vcs.i65"
+    .SYM 
 
     .ORG $F000      ; Start of "cart area" (see Atari memory map)
 

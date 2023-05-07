@@ -387,7 +387,7 @@ Example:
 
 \S{}.REPEAT and .ENDREP
 
-Repeats the block of code enclosed by \cw{.REPEAT} and \cw{.ENDREP} the number of times given by argument to \cw{.REPEAT}.
+Repeats the block of code enclosed by \cw{.REPEAT} and \cw{.ENDREP} the number of times given by the argument to \cw{.REPEAT}.
 
 Example:
 

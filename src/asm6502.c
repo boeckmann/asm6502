@@ -223,15 +223,30 @@ static u16 am_size[16];
             ? SET_TYPE((a), TYPE_WORD) \
             : SET_TYPE((a), MAXINT(TYPE(a),(TYPE(b))))
 
+typedef enum {
+   CONDITION_IF,
+   CONDITION_REPEAT
+} condition_type;
 
-typedef struct if_state {
-   u8 process_statements;
-   u8 condition_met;         /* 1 = condition was met for if */
-} if_state;
+typedef struct condition_state {
+   condition_type typ;
+   union {
+      struct {
+         u8 process_statements;
+         u8 condition_met;
+      } if_;
+      struct {
+         asm_file *file;
+         char *pos;
+         unsigned line;
+         u16 count;
+      } rep;
+   } u;
+} condition_state;
 
-#define IF_STATE_MAX 32
-static if_state if_stack[IF_STATE_MAX];
-static int if_tos = 0;
+#define CONDITION_STATE_MAX 32
+static condition_state condition_stack[CONDITION_STATE_MAX];
+static condition_state *condition_sp = condition_stack + CONDITION_STATE_MAX;
 
 enum {
    ERR_LVL_WARNING,
@@ -273,15 +288,13 @@ enum {
    ERR_NO_BYTE,
    ERR_NO_MEM,
    ERR_MISSING_IF,
-   ERR_MISSING_ENDIF,
-   ERR_MAX_IF,
+   ERR_UNCLOSED_COND,
+   ERR_MAX_COND,
    ERR_PHASE,
    ERR_PHASE_SIZE,
    ERR_DIV_BY_ZERO,
    ERR_CPU_UNSUPPORTED,
-   ERR_MAX_REP,
-   ERR_MISSING_REP,
-   ERR_MISSING_ENDREP
+   ERR_MISSING_REP
 };
 
 static char *err_msg[] = {
@@ -313,15 +326,13 @@ static char *err_msg[] = {
    "byte sized value expected",
    "insufficient memory",
    "missing .IF",
-   "missing .ENDIF",
-   "too many if nesting levels",
+   "unclosed conditional",
+   "condition stack exhausted",
    "symbol value mismatch between pass one and two",
    "pass two code size greater than pass one code size",
    "division by zero",
    "CPU not supported",
-   "too many repeat nesting levels",
    "missing .REPEAT",
-   "missing .ENDREP"
 };
 
 enum {
@@ -540,17 +551,21 @@ static void skip_eol( char **p ) {
 }
 
 
-static void skip_white( char **p ) {
-   while (( **p == ' ' ) || ( **p == '\t' )) ( *p )++;
+static void skip_white( char **pp ) {
+   char *p = *pp;
+   while (( *p == ' ' ) || ( *p == '\t' )) p++;
+   *pp = p;
 }
 
 
-static void skip_white_and_comment( char **p ) {
-   while (( **p == ' ' ) || ( **p == '\t' )) ( *p )++;
-   if ( **p == ';' ) {
-      ( *p )++;
-      while ( !IS_END( **p )) ( *p )++;
+static void skip_white_and_comment( char **pp ) {
+   char *p = *pp;
+   while (( *p == ' ' ) || ( *p == '\t' )) p++;
+   if ( *p == ';' ) {
+      p++;
+      while ( !IS_END( *p )) p++;
    }
+   *pp = p;
 }
 
 
@@ -612,20 +627,22 @@ static value number( char **p ) {
 }
 
 
-static void ident( char **p, char *id, int numeric, int uppercase ) {
+static void ident( char **pp, char *id, int numeric, int uppercase ) {
    int i = 0;
+   char *p = *pp;
 
-   if (( !numeric && !isalpha( **p ) && ( **p != '_' ))
-       || ( !isalnum( **p ) && ( **p != '_' )))
+   if (( !numeric && !isalpha( *p ) && ( *p != '_' ))
+       || ( !isalnum( *p ) && ( *p != '_' )))
       error( ERR_ID );
 
    do {
-      *id++ = (char) ( uppercase ? toupper( *( *p )++ ) : *( *p )++ );
+      *id++ = (char) ( uppercase ? toupper( *p++ ) : *p++ );
       i++;
       if ( i >= ID_LEN ) error( ERR_ID_LEN );
-   } while ( isalnum( **p ) || ( **p == '_' ));
+   } while ( isalnum( *p ) || ( *p == '_' ));
 
    *id = '\0';
+   *pp = p;
 }
 
 
@@ -1657,9 +1674,11 @@ static void directive_binary( char **p ) {
 static void directive_if( char **p, int positive_logic, int check_defined ) {
    value v;
 
-   if ( if_tos >= IF_STATE_MAX ) error( ERR_MAX_IF );
+   if ( condition_sp == condition_stack ) error( ERR_MAX_COND );
 
-   if_stack[if_tos].process_statements = process_statements;
+   condition_sp--;
+   condition_sp->typ = CONDITION_IF;
+   condition_sp->u.if_.process_statements = process_statements;
 
    if ( process_statements ) {
       v = expr( p );
@@ -1667,28 +1686,29 @@ static void directive_if( char **p, int positive_logic, int check_defined ) {
       else process_statements = DEFINED( v ) && v.v != 0;
 
       if ( !positive_logic ) process_statements = !process_statements;
-      if_stack[if_tos].condition_met = process_statements;
+      condition_sp->u.if_.condition_met = process_statements;
    } else {
       skip_to_eol( p );
    }
-
-   if_tos++;
 }
 
 
 static void directive_else( void ) {
-   if ( !if_tos ) error( ERR_MISSING_IF );
-
-   if ( if_stack[if_tos - 1].process_statements )
-      process_statements = !if_stack[if_tos - 1].condition_met;
+   if ( condition_sp >= condition_stack + CONDITION_STATE_MAX
+        || condition_sp->typ != CONDITION_IF )
+      error( ERR_MISSING_IF );
+   if ( condition_sp->u.if_.process_statements )
+      process_statements = !condition_sp->u.if_.condition_met;
 }
 
 
 static void directive_endif( void ) {
-   if ( !if_tos ) error( ERR_MISSING_IF );
+   if ( condition_sp >= condition_stack + CONDITION_STATE_MAX
+        || condition_sp->typ != CONDITION_IF )
+      error( ERR_MISSING_IF );
 
-   if_tos--;
-   process_statements = if_stack[if_tos].process_statements;
+   process_statements = condition_sp->u.if_.process_statements;
+   condition_sp++;
 }
 
 
@@ -1819,23 +1839,13 @@ static void directive_cpu( char **p ) {
    }
 }
 
-typedef struct repeat_info {
-   asm_file *file;
-   unsigned line;
-   char *pos;
-   unsigned count;
-
-} repeat_info;
-
-#define MAX_REPEAT 8
-static repeat_info repeat_stk[MAX_REPEAT];
-static int repeat_tos;
 
 static void directive_repeat( char **p ) {
    value v;
    char *pt;
 
-   if ( repeat_tos == MAX_REPEAT ) error( ERR_MAX_REP );
+   if ( condition_sp == condition_stack ) error( ERR_MAX_COND );
+   condition_sp--;
    skip_white( p );
    v = number( p );
 
@@ -1843,26 +1853,27 @@ static void directive_repeat( char **p ) {
    skip_white_and_comment( p );
    skip_eol( p );
 
-   repeat_stk[repeat_tos].count = v.v;
-   repeat_stk[repeat_tos].line = current_line + 1;
-   repeat_stk[repeat_tos].pos = *p;
-   repeat_stk[repeat_tos].file = current_file;
+   condition_sp->typ = CONDITION_REPEAT;
+   condition_sp->u.rep.count = v.v;
+   condition_sp->u.rep.line = current_line + 1;
+   condition_sp->u.rep.pos = *p;
+   condition_sp->u.rep.file = current_file;
    *p = pt;
-   repeat_tos++;
 }
 
 
 static int directive_endrep( char **p ) {
-   if ( repeat_tos == 0 || repeat_stk[repeat_tos-1].file != current_file ) {
+   if ( condition_sp >= condition_stack + CONDITION_STATE_MAX
+        || condition_sp->typ != CONDITION_REPEAT ) {
       error( ERR_MISSING_REP );
    }
-   if ( repeat_stk[repeat_tos-1].count > 1 ) {
-      *p = repeat_stk[repeat_tos-1].pos;
-      current_line = repeat_stk[repeat_tos-1].line;
-      repeat_stk[repeat_tos-1].count--;
+   if ( condition_sp->u.rep.count > 1 ) {
+      *p = condition_sp->u.rep.pos;
+      current_line = condition_sp->u.rep.line;
+      condition_sp->u.rep.count--;
       return 1;
    } else {
-      repeat_tos--;
+      condition_sp++;
    }
    return 0;
 }
@@ -2195,9 +2206,9 @@ static int conditional_statement( char **p ) {
    char id[ID_LEN];
    char *pt = *p;
 
-   skip_white_and_comment( p );
+   skip_white( p );
 
-   if ( IS_END( **p )) return 0;
+   /*if ( IS_END( **p )) return 0;*/
    if ( **p != DIRECTIVE_LETTER ) return 0;
    ( *p )++;
    ident( p, id, 0, 1 );
@@ -2246,7 +2257,7 @@ static void pass( char **p ) {
    listing_enabled = global_listing_enabled;
    symmap_enabled = 1;
    process_statements = 1;
-   if_tos = 0;
+
 
    if ( !( err = setjmp( error_jmp ))) {
       while ( **p || pos_stk_ptr > 0 ) {
@@ -2299,8 +2310,8 @@ static void pass( char **p ) {
          last_file = current_file;
       }
 
-      if ( if_tos ) error( ERR_MISSING_ENDIF );
-      if ( repeat_tos ) error( ERR_MISSING_ENDREP );
+      if ( condition_sp < condition_stack + CONDITION_STATE_MAX )
+         error( ERR_UNCLOSED_COND );
    } else {
       if ( error_type == ERROR_NORM )
          printf( "%s:%d: error: %s\n", current_file->filename,
