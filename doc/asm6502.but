@@ -269,6 +269,12 @@ A line may either contain a statement or a conditional statement or none of them
 
 Directives instruct the assembler to do certain things. They may or may not produce output data. Names of directives start with a dot. The directives currently known to the assembler are:
 
+\S{}.ALIGN
+
+Aligns the address counter to the next multiple of the first argument, and emits the number of bytes necessary to perform the alignment. If the second byte-sized argument is given, this value is used as fill-byte. Otherwise the fill-byte is zero.
+
+\c .ALIGN 4         ; align @ to a multiple of 4
+\c .ALIGN $100, $EA ; align to next page, fill with $EA
 
 \S{}.ASSERT and .ASSERT1
 
@@ -498,8 +504,8 @@ Indexed indirect by X addresses the byte referenced by the contents of the word 
 \c   -o output      set output file name
 \c   -l listing     set optional listing file name
 \c   -w0            disable all warnings
-\c   -w1            only .warning directives
-\c   -w2            enable all warnings and hints (default)
+\c   -w1            enable warnings (default)
+\c   -w2            enable warnings and hints
 
 Variables defined from the command line are known to the assembler when assembling files. The numbers are parsed like number literals in the source code.
 

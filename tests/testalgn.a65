@@ -1,0 +1,11 @@
+.align 4,$42
+    nop
+.align 4,$42
+    nop
+    nop
+.align 4,$42
+    nop
+    nop
+    nop
+.align 4,$42
+    nop

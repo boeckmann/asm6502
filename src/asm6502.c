@@ -1597,13 +1597,20 @@ static void directive_include( char **p ) {
 }
 
 
-static void directive_fill( char **p ) {
+static void directive_fill( char **p, int align ) {
    value count, filler;
+   u16 num_bytes;
 
    count = expr( p );
    if ( UNDEFINED( count )) error( ERR_UNDEF );
 
-   address_counter += count.v;
+   if (align) {
+       num_bytes = count.v - 1u - (address_counter + count.v - 1u) % count.v;
+   }
+   else {
+       num_bytes = count.v;
+   }
+   address_counter += num_bytes;
 
    skip_white( p );
    if ( **p == ',' ) {
@@ -1617,9 +1624,9 @@ static void directive_fill( char **p ) {
    }
 
    if ( pass_num == 2 ) {
-      memset( code + output_counter, filler.v, count.v );
+      memset( code + output_counter, filler.v, num_bytes );
    }
-   output_counter += count.v;
+   output_counter += num_bytes;
 }
 
 
@@ -1878,6 +1885,7 @@ static int directive_endrep( char **p ) {
    return 0;
 }
 
+
 static int directive( char **p ) {
    char id[ID_LEN];
    value v;
@@ -1894,7 +1902,7 @@ static int directive( char **p ) {
    } else if ( !strcmp( id, "WORD" )) {
       directive_word( p );
    } else if ( !strcmp( id, "FILL" )) {
-      directive_fill( p );
+      directive_fill( p, 0 );
    } else if ( !strcmp( id, "INCLUDE" )) {
       directive_include( p );
       again = 1;
@@ -1912,6 +1920,8 @@ static int directive( char **p ) {
       directive_diagnostic( p, ERR_LVL_FATAL );
    } else if ( !strcmp( id, "WARNING" )) {
       directive_diagnostic( p, ERR_LVL_WARNING );
+   } else if ( !strcmp( id, "ALIGN" )) {
+       directive_fill( p, 1 );
    } else if ( !strcmp( id, "REPEAT" )) {
       directive_repeat( p );
    } else if ( !strcmp( id, "ENDREP" )) {

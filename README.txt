@@ -398,7 +398,17 @@ Copyright 2022-2023 by Bernd Boeckmann
        may not produce output data. Names of directives start with a dot.
        The directives currently known to the assembler are:
 
- 4.6.1 .ASSERT and .ASSERT1
+ 4.6.1 .ALIGN
+
+       Aligns the address counter to the next multiple of the first
+       argument, and emits the number of bytes necessary to perform the
+       alignment. If the second byte-sized argument is given, this value is
+       used as fill-byte. Otherwise the fill-byte is zero.
+
+         .ALIGN 4         ; align @ to a multiple of 4
+         .ALIGN $100, $EA ; align to next page, fill with $EA
+
+ 4.6.2 .ASSERT and .ASSERT1
 
        Tests if the expression given first argument returns a true value,
        otherwise terminates with an error. .ASSERT runs on pass two, and
@@ -409,7 +419,7 @@ Copyright 2022-2023 by Bernd Boeckmann
 
          .ASSERT 2 > 1, "arithmetic implementation is flawed"
 
- 4.6.2 .BINARY Directive
+ 4.6.3 .BINARY Directive
 
        Copies binary data from a file to the output file. Numeric
        expressions specifying a start offset and a length may be given
@@ -422,7 +432,7 @@ Copyright 2022-2023 by Bernd Boeckmann
          .BINARY "SPRITE.DAT", $10     ; skip the first 16 bytes
          .BINARY "SPRITE.DAT", $10, 64 ; copy 64 bytes from offset 16
 
- 4.6.3 .BYTE Directive
+ 4.6.4 .BYTE Directive
 
        Produces one or more output bytes. The arguments are separated by a
        comma. Numeric expressions or strings may be used as arguments. The
@@ -435,7 +445,7 @@ Copyright 2022-2023 by Bernd Boeckmann
          .BYTE 47, 11
          .BYTE "Hello, World", 13, 10
 
- 4.6.4 .CPU Directive
+ 4.6.5 .CPU Directive
 
        Selects the instruction set the assembler understands depending on
        the given CPU type.
@@ -443,7 +453,7 @@ Copyright 2022-2023 by Bernd Boeckmann
          .CPU 6502   ; targets the NMOS 6502 CPU
          .CPU 65C02  ; targets the CMOS 65C02 CPU (experimental)
 
- 4.6.5 .ECHO and .ECHO1 Directives
+ 4.6.6 .ECHO and .ECHO1 Directives
 
        Print the arguments to standard output. .ECHO does it on the
        second assembler pass, while .ECHO1 does it on the first pass. The
@@ -456,13 +466,13 @@ Copyright 2022-2023 by Bernd Boeckmann
 
          .ECHO "hexadecimal representation of ", 4711, " is ", [$]4711
 
- 4.6.6 .ERROR directive
+ 4.6.7 .ERROR directive
 
        Aborts the assembly along with file name and line number
        information. Accepts the same parameters as .ECHO for the error
        message.
 
- 4.6.7 .FILL Directive
+ 4.6.8 .FILL Directive
 
        Starting from the current position of the output file, emits as many
        bytes as given by the first argument. If the second argument is
@@ -474,7 +484,7 @@ Copyright 2022-2023 by Bernd Boeckmann
          .FILL 100       ; fill 100 bytes with zero
          .FILL 16, $EA   ; insert 16 NOPs ($EA) into the code
 
- 4.6.8 .IF, .IFN, .ELSE and .ENDIF Directives
+ 4.6.9 .IF, .IFN, .ELSE and .ENDIF Directives
 
        Conditionally assembles code if the condition of the argument to .IF
        or .IFN is met. For .IF, the condition is met if the argument yields
@@ -502,14 +512,14 @@ Copyright 2022-2023 by Bernd Boeckmann
        In listing files, the unprocessed lines are indicated by a minus
        after the line number instead of a colon.
 
- 4.6.9 .IFDEF and .IFNDEF Directives
+4.6.10 .IFDEF and .IFNDEF Directives
 
        An argument to .IFDEF is considered true, if its value is defined.
        An argument to .IFNDEF is considered true, if its value is
        undefined. Otherwise, the directives behave like their .IF and .IFN
        counterparts.
 
-4.6.10 .INCLUDE Directive
+4.6.11 .INCLUDE Directive
 
        Substitutes the directive with the assembler source contained in the
        file given as argument.
@@ -518,7 +528,7 @@ Copyright 2022-2023 by Bernd Boeckmann
 
          .INCLUDE "c64prg.i65"
 
-4.6.11 .LIST and .NOLIST Directives
+4.6.12 .LIST and .NOLIST Directives
 
        If a listing file is given via command line, listing generation is
        initially enabled. If the user wants some parts of the code to be
@@ -531,7 +541,7 @@ Copyright 2022-2023 by Bernd Boeckmann
        A .NOLIST inside an include file does not propagate to the parent
        file.
 
-4.6.12 .ORG Directive
+4.6.13 .ORG Directive
 
        Sets the address counter to the numeric value of the argument. Does
        not modify the offset into the output file. This means that .ORG
@@ -542,10 +552,10 @@ Copyright 2022-2023 by Bernd Boeckmann
 
          .ORG $0801
 
-4.6.13 .REPEAT and .ENDREP
+4.6.14 .REPEAT and .ENDREP
 
        Repeats the block of code enclosed by .REPEAT and .ENDREP the number
-       of times given by argument to .REPEAT.
+       of times given by the argument to .REPEAT.
 
        Example:
 
@@ -553,19 +563,19 @@ Copyright 2022-2023 by Bernd Boeckmann
            sta WSYNC
          .ENDREP
 
-4.6.14 .SYM and .NOSYM Directives
+4.6.15 .SYM and .NOSYM Directives
 
        Selectively enables or disables the inclusion of defined labels and
        variables in the symbol map for specific code regions. .SYM enables
        it (default), and .NOSYM disables it. The symbol map is part of the
        program listing.
 
-4.6.15 .WARNING Directive
+4.6.16 .WARNING Directive
 
        Prints a warning along with file name and line number information.
        Accepts the same parameters as .ECHO for the warning message.
 
-4.6.16 .WORD Directive
+4.6.17 .WORD Directive
 
        Produces one or more output words.
 
@@ -684,8 +694,8 @@ A Command Line Syntax
            -o output      set output file name
            -l listing     set optional listing file name
            -w0            disable all warnings
-           -w1            only .warning directives
-           -w2            enable all warnings and hints (default)
+           -w1            enable warnings (default)
+           -w2            enable warnings and hints
 
        Variables defined from the command line are known to the assembler
        when assembling files. The numbers are parsed like number literals
@@ -1112,4 +1122,4 @@ B Instruction Reference
 
          98         tya
 
-[Fr  5 Mai 19:10:43 2023]
+[Mo  8 Mai 10:30:47 2023]
