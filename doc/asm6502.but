@@ -271,7 +271,7 @@ Directives instruct the assembler to do certain things. They may or may not prod
 
 \S{}.ALIGN
 
-Aligns the address counter to the next multiple of the first argument, and emits the number of bytes necessary to perform the alignment. If the second byte-sized argument is given, this value is used as fill-byte. Otherwise the fill-byte is zero.
+Aligns the address counter to the next multiple of the first argument, and emits the number of bytes necessary to perform the alignment. If the second byte-sized argument is given, this value is used as fill-byte. Otherwise, the fill-byte is zero.
 
 \c .ALIGN 4         ; align @ to a multiple of 4
 \c .ALIGN $100, $EA ; align to next page, fill with $EA
