@@ -1947,7 +1947,7 @@ static int directive( char **p ) {
 
 static int is_mnemonic( const char *id ) {
    char id_uppercase[ID_LEN];
-   int l = 0, r = instruction_tbl_size, x;
+   int l = 0, r = instruction_tbl_size - 1, x;
    int cmp;
    strcpy( id_uppercase, id );
    to_uppercase( id_uppercase );
