@@ -43,5 +43,5 @@ SpaceInEmptyParentheses: false
 SpacesInCStyleCastParentheses: false
 SpacesInParentheses: true
 SpacesInSquareBrackets: false
-TabWidth: 3
-UseTab: true
+TabWidth: 8
+UseTab: false
