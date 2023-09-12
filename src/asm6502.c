@@ -1330,7 +1330,7 @@ static int instruction_zp_rel( char **p, instruction_desc *instr, value v ) {
    if ( pass_num == 2 ) {
       if ( UNDEFINED( v ) || UNDEFINED( rel )) error( ERR_UNDEF );
    }
-   emit_instr_2b( instr, AM_ZPR, (u8) v.v, off );
+   emit_instr_2b( instr, AM_ZPR, (u8) v.v, (u8)off );
 
    return AM_ZPR;
 }
@@ -1535,8 +1535,14 @@ static void free_files( void ) {
    asm_file *file = asm_files;
 
    for ( ; file < asm_files + asm_file_count; file++ ) {
-      free( file->filename );
-      free( file->text );
+      if ( file->filename ) {
+         free(file->filename);
+         file->filename = NULL;
+      }
+      if (file->text) {
+         free(file->text);
+         file->text = NULL;
+      }
    }
 }
 
