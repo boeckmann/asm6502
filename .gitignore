@@ -2,11 +2,17 @@
 asm6502
 *.exe
 *.o
+*.zip
 /output
 
 # ASM6502 output files
 *.lst
 *.bin
+
+#packages
+pkg/svardos/appinfo
+pkg/svardos/devel
+pkg/svardos/asm6502.svp
 
 # misc project files
 doc/asm6502.pdf

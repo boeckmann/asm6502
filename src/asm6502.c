@@ -2,30 +2,24 @@
 
 Copyright (c) 2022-2023 Bernd Boeckmann
 
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-1. Redistributions of source code must retain the above copyright notice,
-        this list of conditions and the following disclaimer.
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
-2. Redistributions in binary form must reproduce the above copyright notice,
-        this list of conditions and the following disclaimer in the documentation
-        and/or other materials provided with the distribution.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 
-3. Neither the name of the copyright holder nor the names of its contributors
-        may be used to endorse or promote products derived from this software
-        without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS “AS IS”
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 /* customize the following to adapt to the syntax of other assemblers */
@@ -106,8 +100,8 @@ static asm_file* current_file; /* currently processed file */
 static char filename_buf[STR_LEN];
 
 /* position stack is used when processing include files. Every time an
-        include file is about to be processed, the position after the include
-        directive gets pushed onto the stack */
+   include file is about to be processed, the position after the include
+   directive gets pushed onto the stack */
 static pos_stack pos_stk[MAX_POS_STACK];
 static int pos_stk_ptr = 0;
 
@@ -122,7 +116,7 @@ static int symmap_enabled = 0;
 static FILE* list_file;
 
 /* if 0 processing of statements is disabled by conditional assembly
-        directives */
+   directives */
 static int process_statements = 1;
 
 /* data type used when evaluating expressions */
@@ -549,7 +543,8 @@ static value to_byte( value v ) {
 }
 
 
-#define IS_HEX_DIGIT( x ) ( isdigit( ( x ) ) || ( ( ( x ) >= 'a' ) && ( ( x ) <= 'f' ) ) || \
+#define IS_HEX_DIGIT( x ) ( isdigit( ( x ) ) ||                         \
+                            ( ( ( x ) >= 'a' ) && ( ( x ) <= 'f' ) ) || \
                             ( ( ( x ) >= 'A' ) && ( ( x ) <= 'F' ) ) )
 
 
@@ -663,7 +658,8 @@ static void ident( char** pp, char* id, int numeric, int uppercase ) {
    int i = 0;
    char* p = *pp;
 
-   if ( ( !numeric && !isalpha( *p ) && ( *p != '_' ) ) || ( !isalnum( *p ) && ( *p != '_' ) ) )
+   if ( ( !numeric && !isalpha( *p ) && ( *p != '_' ) ) ||
+        ( !isalnum( *p ) && ( *p != '_' ) ) )
       error( ERR_ID );
 
    do {
@@ -801,7 +797,11 @@ static value product( char** p ) {
    skip_white( p );
    op = **p;
 
-   while ( ( op == '*' ) || ( op == '/' ) || ( op == AND_LETTER && *( *p + 1 ) != AND_LETTER ) || ( **p == '<' && *( *p + 1 ) == '<' ) || ( **p == '>' && *( *p + 1 ) == '>' ) ) {
+   while ( ( op == '*' ) ||
+           ( op == '/' ) ||
+           ( op == AND_LETTER && *( *p + 1 ) != AND_LETTER ) ||
+           ( **p == '<' && *( *p + 1 ) == '<' ) ||
+           ( **p == '>' && *( *p + 1 ) == '>' ) ) {
       ( *p )++;
       if ( **p == '<' || **p == '>' )
          ( *p )++;
@@ -1340,7 +1340,8 @@ static int instruction_ind( char** p, instruction_desc* instr ) {
    if ( pass_num == 2 ) {
       if ( UNDEFINED( v ) )
          error( ERR_UNDEF );
-      if ( ( am == AM_ZIX || am == AM_ZIY || am == AM_ZIN ) && ( TYPE( v ) != TYPE_BYTE ) )
+      if ( ( am == AM_ZIX || am == AM_ZIY || am == AM_ZIN ) &&
+           ( TYPE( v ) != TYPE_BYTE ) )
          error( ERR_ILLEGAL_TYPE );
    }
 
