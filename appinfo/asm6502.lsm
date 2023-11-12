@@ -1,0 +1,12 @@
+Begin3
+Title:         ASM6502
+Version:       23.11
+Entered-date:  23-11-12
+Description:   small but useful 6502 assembler in ~3K lines of ANSI C code
+Keywords:      6502, assembler
+Author:        bernd-freedos@boeckmann.io (Bernd Boeckmann)
+Maintained-by: bernd-freedos@boeckmann.io (Bernd Boeckmann)
+Primary-site:  https://github.com/boeckmann/asm6502
+Hwreq:         8086
+Copying-policy:MIT
+End

@@ -1,0 +1,15 @@
+ASM6502 package for SvarDOS
+---------------------------
+
+This SvarDOS package provides ASM6502, a small assembler for the
+6502 microprocessor. Together with other 6502 specific SvarDOS packages
+like VICE, a Commodore 64 emulator, or STELLA, an Atari VCS emulator,
+it can be used to create software for many of the ancient 8-bit machines.
+
+See MANUAL.TXT for a general introduction and reference to ASM6502.
+
+The EXAMPLES sub-directory contains two examples to get you going, one for
+the C64 and one for the Atari VCS. They contain a BUILD.BAT to generate
+binaries and listing files.
+
+Have fun!
