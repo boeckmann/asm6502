@@ -1,4 +1,6 @@
 del asm6502.svp
+del asm6502.zip
+
 deltree /Y appinfo
 deltree /Y devel
 
@@ -27,3 +29,9 @@ copy ..\..\support\atarivcs\*.* devel\asm6502\support\atarivcs
 copy ..\..\support\c64\*.* devel\asm6502\support\c64
 
 zip -9rkDX asm6502.svp appinfo devel
+
+@rem source archive
+copy ..\..\src\asm6502.c asm6502.c
+zip -9rkDX asm6502.zip asm6502.c
+del asm6502.c
+
