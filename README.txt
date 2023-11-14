@@ -130,14 +130,14 @@ Copyright 2022-2023 by Bernd Boeckmann
        the mode the processor operates in is called _immediate addressing_
        mode. The `INX' instruction above implicitly operates on a register
        called X. For this reason it is called _implicit addressing_. Often,
-       the argument specifies a memory location. This memory location
-       may be referenced to the start of the address space. In this case
-       it is called _absolute addressing_ mode. If the memory location
-       is specified relative to some other location we call it _relative
-       addressing_ mode. Sometimes one does not want to encode a fixed
-       memory location into the machine instruction, but instead use the
-       content of some memory location as the address to operate on. This
-       is called _indirect addressing_.
+       the argument specifies a memory location. This memory location may
+       be given relative to the start of the address space. This it is
+       called _absolute addressing_. If the memory location is specified
+       relative to some other location, we call it _relative addressing_.
+       Sometimes one does not want to encode a fixed memory location into
+       the machine instruction, but instead use the content of some memory
+       location as the address to operate on. This is called _indirect
+       addressing_.
 
        The sequence of instructions executed by the processor may be
        altered by the programmer utilizing special machine instructions.
@@ -331,7 +331,7 @@ Copyright 2022-2023 by Bernd Boeckmann
 
          2+3*5        ; value 17
          $4700 | $11  ; is $4711
-         255+255      ; of type word because >256
+         255+255      ; of type word because >255
 
  4.4.4 Byte-select and Conversion Operators
 
@@ -403,7 +403,7 @@ Copyright 2022-2023 by Bernd Boeckmann
        Aligns the address counter to the next multiple of the first
        argument, and emits the number of bytes necessary to perform the
        alignment. If the second byte-sized argument is given, this value is
-       used as fill-byte. Otherwise the fill-byte is zero.
+       used as fill-byte. Otherwise, the fill-byte is zero.
 
          .ALIGN 4         ; align @ to a multiple of 4
          .ALIGN $100, $EA ; align to next page, fill with $EA
@@ -637,7 +637,7 @@ Copyright 2022-2023 by Bernd Boeckmann
  4.7.6 Absolute X and Absolute X Addressing
 
        The address is encoded in the word following the opcode and
-       displaced by the contents for the X or Y register.
+       displaced by the contents of the X or Y register.
 
          LDA $4711,X ; load contents of address $4711 displaced by X
          LDA $4711,Y ; load contents of address $4711 displaced by Y
@@ -645,7 +645,7 @@ Copyright 2022-2023 by Bernd Boeckmann
  4.7.7 Zero-page X and Zero-page Y Addressing
 
        The address is encoded in the byte following the opcode displaced by
-       the contents for the X or Y register.
+       the contents of the X or Y register.
 
          LDA $47,X ; A = contents of address $47 displaced by X
          LDX $11,Y ; X = load contents of address $47 displaced by Y
@@ -669,7 +669,7 @@ Copyright 2022-2023 by Bernd Boeckmann
 
          JMP +(2+3)*1000
 
-       This one is correct (indirect addressing):
+       or
 
          JMP ((2+3)*1000)
 
@@ -1122,4 +1122,4 @@ B Instruction Reference
 
          98         tya
 
-[Mo  8 Mai 10:30:47 2023]
+[14.11.2023 16:15:10]
